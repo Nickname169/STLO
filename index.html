@@ -1,0 +1,624 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>환상체 관리 협동 v0.1</title>
+<style>
+:root{--bg:#f6f4ef;--fg:#1d1b18;--c:#fff;--ac:#b3261e;--mu:#7a746a;--bd:#d9d4c8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15130f;--fg:#ece7dc;--c:#211e19;--ac:#ff7a6e;--mu:#9a9385;--bd:#3a352c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15130f;--fg:#ece7dc;--c:#211e19;--ac:#ff7a6e;--mu:#9a9385;--bd:#3a352c;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0 auto;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,"Malgun Gothic",sans-serif;padding:12px;max-width:760px}
+.c{background:var(--c);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin:8px 0}
+button,input{font:inherit;color:var(--fg);background:var(--c);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;margin:2px}
+button{cursor:pointer}button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.m{color:var(--mu);font-size:13px}.w{color:var(--ac)}h1{font-size:19px;margin:6px 0}
+button:disabled{opacity:.45;cursor:default}summary{cursor:pointer}
+.bar{display:none;position:fixed;left:0;right:0;bottom:0;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--bd);z-index:5}.bar button{flex:1;min-height:48px;margin:0;font-weight:600}
+@media (max-width:640px){body{padding:8px 8px 88px;font-size:15px}.bar{display:flex}button{min-height:44px;padding:8px 12px;margin:3px 2px}input{font-size:16px;min-height:44px}h1{font-size:17px}.c{padding:8px 10px;margin:6px 0}summary{min-height:40px;padding:6px 0;line-height:1.6}}
+</style><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ▼▼ 여기에 Firebase 웹앱 설정값을 붙여넣으세요 (콘솔 > 프로젝트 설정 > 내 앱 > firebaseConfig) ▼▼ */
+window.FBCFG={apiKey:'AIzaSyDGhnP4kReI2JPXmV1O5dsi8pOttNPibek',authDomain:'survive-in-lobotomy.firebaseapp.com',projectId:'survive-in-lobotomy',storageBucket:'survive-in-lobotomy.firebasestorage.app',messagingSenderId:'95314318072',appId:'1:95314318072:web:e6d6540a92f0aa1de4210d'};
+/* ▲▲ */
+</script>
+</head><body><h1>환상체 관리 협동 <span class="m">v0.1 코어 루프</span></h1><div id="app" class="m">불러오는 중…</div>
+<script>
+const GR=[10,30,45,65,85,100],gr=v=>GR.filter(x=>v>=x).length||1,GN=['I','II','III','IV','V','EX'];
+const W=['본능','통찰','애착','억압'],SN=['용기','지혜','절제','정의'],DN=['지휘팀','정보팀','교육팀','안전팀','중앙본부','징계팀','복지팀','추출팀','기록팀','설계팀'],R=n=>Math.random()*n|0;
+const AB=[
+{n:'단 한번의 악과 수백가지의 선행',g:'ZAYIN',m:10,c:null,b:[60,60,60,60],d:1},
+{n:'[임시] 속삭이는 상자',g:'TETH',m:12,c:3,b:[50,65,45,55],d:1},
+{n:'버려진 살인마',g:'TETH',m:12,c:2,b:[65,45,55,35],d:0,ni:1},
+{n:'[임시] 침묵의 거울',g:'HE',m:17,c:3,b:[35,45,40,50],d:2}];
+AB[0].t=1;
+const DP=[{n:'지휘팀',f:0},{n:'정보팀',f:0},{n:'교육팀',f:0},{n:'안전팀',f:0},{n:'중앙본부',f:1,x:1},{n:'징계팀',f:1},{n:'복지팀',f:1},{n:'추출팀',f:2},{n:'기록팀',f:2},{n:'설계팀',f:2,x:1}],GP=[[0],[1,2,3],[4],[5,6],[7,8],[9]];
+const GRD=[['ZAYIN','TETH','WAW','HE','TETH'],['HE','WAW','WAW','ALEPH','TETH'],['WAW','ALEPH','WAW','TETH','ZAYIN']],MX={ZAYIN:10,TETH:12,HE:17,WAW:22,ALEPH:32};
+const GR2=['TETH','HE','WAW','ZAYIN','HE','WAW','TETH','ALEPH','WAW','HE','TETH','ZAYIN','WAW'];
+for(let i=0;i<53;i++){const g=GR2[i%13],t=i<11;AB.push({n:`[임시] ${t?'도구형':'환상체'} ${i+1}`,g,m:MX[g],c:t?null:3,b:[0,1,2,3].map(k=>k==i%4?65:45),d:i%4,t:t?1:0})}
+const NW=n=>4*n+n*(n+1)/2,mH=p=>40+Math.floor(p.s[0])+gmh(p)+(p.bb?15:0)+(p.hh?20:0),mS=p=>Math.floor((40+Math.floor(p.s[1])+gms(p))*(p.cb>0?1.4:1)),GI=['ZAYIN','TETH','HE','WAW','ALEPH'],eg=p=>Math.max(1,Math.min(5,Math.round(p.s.reduce((a,v)=>a+gr(v),0)/4))),DT=['RED','WHITE','BLACK','PALE'],cost=(i,g)=>(i==3?[3,6,11,18,27]:[2,3,5,7,9])[g-1];
+const mult=r=>r>=3?4:r>=2?3:r>=1.5?2:r>=1.25?1.5:1.2,TH=[1,1.25,1.5,2,3];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let db,me,code,S=null,P={},A={},busy=0,nm='',gen=0,BK=0,DC=0;
+const $=s=>document.querySelector(s);
+function aft(T){if(T.ti<5&&T.en>=T.q*TH[T.ti])vote(T,'end',[{t:'하루 종료'},{t:'계속 작업(위험·보상↑)'}])}
+function hyTick(T,p,L){const H=T.hy;H.k++;const g=2*H.k;p.s=p.s.map(v=>v+g);p.yg=(p.yg||[0,0,0,0]).map(v=>v+g);if(p.yg.reduce((a,v)=>a+v,0)>=200)p.yx=1;T.hu=T.hu||{r:0,n:0};T.hu.r++;if(R(100)<Math.min(90,20+8*H.k))H.ok=!H.ok;L.push('⚙ '+p.n+': 기계 사용 '+H.k+'라운드째 — 모든 능력치 +'+g+' (누적 각 +'+p.yg[0]+' / 합계 +'+p.yg.reduce((a,v)=>a+v,0)+') · 상단 '+(H.ok?'YES':'NO'))}
+function hyStart(T,p,x,L){const a=T.ab[x.hu];if(!a||AB[a.id].sp!='happy')return;if(T.hy||T.hl){L.push(p.n+': 이 도구는 오늘 이미 사용되었어요 (하루 1명)');return}if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 도구를 사용할 수 없어요');return}
+ T.hl=1;T.hu=T.hu||{r:0,n:0};T.hu.n++;p.yc=(p.yc||0)+1;if(p.yc>=5){p.hp=0;L.push('💥 '+p.n+': 다섯 번째 사용 — 기계 앞에서 폭발했다');return}
+ T.hy={u:Object.keys(T.ps).find(k=>T.ps[k]===p),k:0,ok:1};L.push('⚙ '+p.n+': 기계 사용 시작');hyTick(T,p,L)}
+function hyRound(T,p,x,L){const H=T.hy;if(x.he){const g=p.yg||[0,0,0,0];if(H.ok){L.push('⚙ '+p.n+': YES에서 사용 종료 — 상승한 능력치가 유지돼요 (오늘 하루)')}else{p.s=p.s.map((v,i)=>v-g[i]);p.yg=[0,0,0,0];p.hp=Math.min(p.hp,mH(p));p.sp=Math.min(p.sp,mS(p));L.push('⚙ '+p.n+': NO에서 사용 종료 — 상승한 능력치가 모두 사라졌어요')}T.hy=null;return}hyTick(T,p,L)}
+function hyDay(T){const L=[];T.hy=null;if(T.ba){const q=T.ps[T.ba.u];if(q)baRestore(T,q);T.ba=null}Object.values(T.ps).forEach(p=>{p.bdk=0});T.ab.forEach(a=>{if(AB[a.id].sp=='music')a.on=0});Object.values(T.ps).forEach(p=>{p.th=0});if(T.ht){const q=T.ps[T.ht.u];if(q){q.hh=0;q.hp=Math.min(q.hp,mH(q))}T.ht=null}Object.values(T.ps).forEach(p=>{if(p.sg){p.s[1]=Math.max(0,p.s[1]-p.sg);p.sp=Math.min(p.sp,mS(p))}p.sg=0;p.sk=0});if(T.br){const q=T.ps[T.br.u];if(q){q.bb=0;q.hp=Math.min(q.hp,mH(q))}T.br=null}(T.eq||[]).forEach(e=>{e.lv=0});Object.values(T.ps).forEach(p=>{const g=p.yg;if(g&&g.some(v=>v)){p.s=p.s.map((v,i)=>v-(g[i]||0));p.hp=Math.min(p.hp,mH(p));p.sp=Math.min(p.sp,mS(p))}p.yg=null;if(p.yx&&p.al){p.hp=0;L.push('✨ '+p.n+': 총 200 이상의 능력치 상승을 겪은 직원은 날이 지나자 사라졌다')}p.yx=0});if(T.wc){const q=T.ps[T.wc.u];if(q&&q.al){q.hp=0;q.iw=0;L.push('⚙ '+q.n+': 날이 바뀌도록 기계에서 나오지 못했다')}T.wc=null}if(L.length){post(T,L);T.log=L.concat(T.log||[])}}
+function wcTick(T,p,L){const W=T.wc;W.k++;const e=2*W.k;T.en+=e;W.e+=e;T.hw.r++;hit(T,p,0,8);L.push('⚙ '+p.n+': 기계 안 '+W.k+'라운드째 — 에너지 +'+e+' · RED 피해')}
+function faithUse(T,p,u,x,L){const a=T.ab[x.fu];if(!a||AB[a.id].sp!='faith')return;if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 도구를 사용할 수 없어요');return}
+ const e=(T.eq||[]).find(q=>q.u===u&&q.k=='w');if(!e){L.push('✨ '+p.n+': 강화할 에고 무기가 없어요 (기본 무기는 강화할 수 없어요)');return}
+ const lv=e.lv||0;if(lv>=4){L.push('✨ '+p.n+': 이미 최대 강화예요');return}
+ const cs=Math.max(1,Math.round(T.q*[.02,.03,.05,.12][lv]));if(T.en<cs){L.push('✨ '+p.n+': 에너지가 부족해요 (필요 '+cs+')');return}
+ T.en-=cs;T.hf=T.hf||{r:0,n:0};T.hf.n++;a.t=null;const nm=eN(e.id,'w').replace(' (무기)','');
+ if(R(100)<85-15*lv){e.lv=lv+1;L.push('✨ '+p.n+': '+nm+' +'+e.lv+'강 성공! (에너지 -'+cs+')')}
+ else{T.eq=T.eq.filter(q=>q!==e);if(!e.q)e.q=(T.qs=(T.qs||0)+1);T.dz=(T.dz||[]).concat([e.q]);L.push('💥 '+p.n+': '+nm+' 강화 실패 — 무기가 소멸했어요 (에너지 -'+cs+')')}}
+function redist(s,hiMin){const S=s.reduce((a,v)=>a+v,0),hi=Math.max(hiMin||100,...s),lo=10;let v=s.map(()=>S/4*(1+(Math.random()+Math.random()+Math.random()-1.5)*.5)),fix=[0,0,0,0];
+ for(let k=0;k<12;k++){const free=[0,1,2,3].filter(i=>!fix[i]),fs_=fix.reduce((a,x,i)=>a+(x?v[i]:0),0),sm=free.reduce((a,i)=>a+v[i],0);if(!free.length)break;const t=(S-fs_)/(sm||1);free.forEach(i=>v[i]*=t);let ch=0;free.forEach(i=>{if(v[i]<lo){v[i]=lo;fix[i]=1;ch=1}else if(v[i]>hi){v[i]=hi;fix[i]=1;ch=1}});if(!ch)break}
+ const r=v.map(Math.round);let d=S-r.reduce((a,x)=>a+x,0);for(let k=0;d!=0&&k<40;k++){const i=R(4);if(d>0&&r[i]<hi){r[i]++;d--}else if(d<0&&r[i]>lo){r[i]--;d++}}return r}
+function mirrorUse(T,p,u,x,L){const a=T.ab[x.mu];if(!a||AB[a.id].sp!='mirror')return;if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 도구를 사용할 수 없어요');return}
+ const g=p.yg||[0,0,0,0],base=p.s.map((v,i)=>v-g[i]),b0=base.slice();p.mc=(p.mc||0)+1;T.hm=T.hm||{r:0,n:0};T.hm.n++;a.t=null;let nb=base;
+ if(p.mc>=2)nb=nb.map(v=>Math.max(10,v-3));nb=redist(nb);p.s=nb.map((v,i)=>v+g[i]);p.hp=Math.min(p.hp,mH(p));p.sp=Math.min(p.sp,mS(p));
+ L.push('🪞 '+p.n+': 거울을 마주했다 — 능력치 '+b0.map(Math.floor).join('/')+' → '+nb.join('/')+(p.mc>=2?' (오늘 '+p.mc+'번째: 모든 능력치 감소)':''))}
+function braceUse(T,p,u,x,L){const a=T.ab[x.bu];if(!a||AB[a.id].sp!='brace')return;if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 도구를 사용할 수 없어요');return}
+ const B=T.br;if(B&&B.u==u){if(p.hp<mH(p)){p.hp=0;p.bb=0;T.br=null;a.t=null;L.push('💚 '+p.n+': 체력이 감소한 상태에서 팔찌를 반납하려 하자 사망했다');return}p.bb=0;T.br=null;a.t=null;p.hp=Math.min(p.hp,mH(p));L.push('💚 '+p.n+': 발광 팔찌를 반납했다');return}
+ if(B){L.push(p.n+': 발광 팔찌는 이미 다른 직원이 착용 중이에요');return}
+ if(p.hh||p.bq){L.push(p.n+': 이미 다른 장착형 도구를 착용 중이에요');return}
+ p.bb=1;p.hp+=15;T.br={u,k:0};T.hb=T.hb||{r:0,n:0};T.hb.n++;a.t=null;L.push('💚 '+p.n+': 발광 팔찌를 착용했다 (최대 체력 +15)')}
+function htTick(T,L){const H=T.ht;if(!H)return;const q=T.ps[H.u];if(!q||!q.al){if(q)q.hh=0;T.ht=null;return}H.k++;T.hc=T.hc||{r:0,n:0};T.hc.r++}
+function heartUse(T,p,u,x,L){const a=T.ab[x.hv];if(!a||AB[a.id].sp!='heart')return;if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 도구를 사용할 수 없어요');return}
+ const H=T.ht;if(H&&H.u==u){const bad=!H.at||H.k<2;p.hh=0;T.ht=null;a.t=null;p.hp=Math.min(p.hp,mH(p));if(bad){p.st='분노';p.fp=1;L.push('💢 '+p.n+': '+(H.at?'착용 직후 30초 이내에':'아무도 공격하지 않고')+' 심장을 반납하려 하자 이성을 잃었다 — 분노 상태')}else L.push('❤ '+p.n+': 열망하는 심장을 반납했다');return}
+ if(H){L.push(p.n+': 열망하는 심장은 이미 다른 직원이 착용 중이에요');return}
+ if(p.bb||p.bq){L.push(p.n+': 이미 다른 장착형 도구를 착용 중이에요');return}
+ p.hh=1;p.hp+=20;T.ht={u,k:0,at:0};T.hc=T.hc||{r:0,n:0};T.hc.n++;a.t=null;L.push('❤ '+p.n+': 열망하는 심장을 착용했다 (최대 체력 +20, 공격 속도 +3)')}
+function tmTick(T,L){T.ab.forEach(a=>{if(AB[a.id].sp!='music')return;const on=!!a.on;if(on){T.hr=T.hr||{r:0,n:0};T.hr.r++}Object.values(T.ps).forEach(p=>{const here=on&&p.al&&(p.lc!=null?p.lc:(p.dp||0))===(a.dp||0);if(!here){p.th=0;return}p.th=(p.th||0)+1;const h=Math.round(mS(p)*.15);p.sp=Math.min(mS(p),p.sp+h);if(p.th>=3&&!p.st){p.st=['패닉','도주','분노'][p.tr];p.fp=1;L.push('🎼 '+p.n+': 오르골 소리에 취해 '+p.st+' 상태')}})})}
+function musicUse(T,p,u,x,L){const a=T.ab[x.tu];if(!a||AB[a.id].sp!='music')return;if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 도구를 사용할 수 없어요');return}
+ a.t=null;if(a.on){a.on=0;Object.values(T.ps).forEach(q=>{q.th=0});L.push('🎼 '+p.n+': 오르골을 멈췄다');return}
+ a.on=1;T.hr=T.hr||{r:0,n:0};T.hr.n++;L.push('🎼 '+p.n+': 오르골을 작동시켰다')}
+function baRestore(T,q){const A_=T.ba;if(!A_)return;q.s[1]+=A_.w;q.s[3]=Math.max(0,q.s[3]-A_.j);q.bq=0;T.ba=null;q.sp=Math.min(q.sp,mS(q));q.hp=Math.min(q.hp,mH(q))}
+function baTick(T,L){const H=T.ba;if(H){const q=T.ps[H.u];if(!q||!q.al){if(q)q.bq=0;T.ba=null}else{H.k++;T.hj=T.hj||{r:0,n:0};T.hj.r++;if(q.sp<=0){q.hp=0;L.push('📡 '+q.n+': 행동교정을 착용한 채 정신력이 0이 되어 패닉 상태에서 그대로 사망했다');baRestore(T,q);post(T,L)}}}
+ Object.values(T.ps).forEach(p=>{if(p.al&&p.bdk>0){p.bdk--;if(p.bdk<=0){p.hp=0;L.push('📡 '+p.n+': 이상행동을 보인 이후 사망했다');post(T,L)}}})}
+function adjUse(T,p,u,x,L){const a=T.ab[x.aj];if(!a||AB[a.id].sp!='adj')return;if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 도구를 사용할 수 없어요');return}
+ const H=T.ba;if(H&&H.u==u){const bad=H.k<2;baRestore(T,p);a.t=null;if(bad){p.st=['패닉','도주','분노'][p.tr];p.fp=1;p.bdk=3;L.push('📡 '+p.n+': 장착 직후 반납을 시도하자 패닉에 빠졌다 — 이상행동을 보인다')}else L.push('📡 '+p.n+': 행동교정을 반납했다 (능력치 복구)');return}
+ if(H){L.push(p.n+': 행동교정은 이미 다른 직원이 착용 중이에요');return}
+ if(p.bb||p.hh){L.push(p.n+': 이미 다른 장착형 도구를 착용 중이에요');return}
+ const w=Math.min(10,Math.max(0,p.s[1])),j=Math.max(0,Math.min(15,100-p.s[3]));p.s[1]-=w;p.s[3]+=j;p.sp=Math.min(p.sp,mS(p));p.bq=1;T.ba={u,k:0,w,j};T.hj=T.hj||{r:0,n:0};T.hj.n++;a.t=null;L.push('📡 '+p.n+': 행동교정을 착용했다 (지혜 -'+w+', 정의 +'+j+')')}
+function brTick(T,L){htTick(T,L);baTick(T,L);tmTick(T,L);const B=T.br;if(!B)return;const q=T.ps[B.u];if(!q||!q.al){if(q)q.bb=0;T.br=null;return}
+ T.hb=T.hb||{r:0,n:0};T.hb.r++;
+ if(q.hp>=mH(q)){B.k=(B.k||0)+1;if(B.k>=4){q.hp=0;q.bb=0;T.br=null;L.push('💚 '+q.n+': 4턴 동안 체력이 줄지 않았다 — 과도한 회복의 부작용으로 사망했다');post(T,L)}}
+ else{B.k=0;const h=Math.min(mH(q),q.hp+48);L.push('💚 '+q.n+': 발광 팔찌가 체력을 회복시킨다 (+'+Math.round(h-q.hp)+')');q.hp=h}}
+function skinUse(T,p,u,x,L){const a=T.ab[x.su];if(!a||AB[a.id].sp!='skin')return;if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 도구를 사용할 수 없어요');return}
+ if(p.s[1]>=100){L.push('📖 '+p.n+': 지혜가 한계에 달해 더 읽을 수 없어요');return}
+ const g=Math.min(10,100-p.s[1]);p.s[1]+=g;p.sg=(p.sg||0)+g;p.sk=(p.sk||0)+1;T.hs=T.hs||{r:0,n:0};T.hs.n++;a.t=null;
+ L.push('📖 '+p.n+': 책을 읽었다 — 지혜 +'+g+' (지혜 '+Math.floor(p.s[1])+', 읽은 횟수 '+p.sk+'회)')}
+function wcStart(T,p,x,L){const a=T.ab[x.wu];if(!a||AB[a.id].sp!='wcan')return;if(T.wc){L.push(p.n+': 이미 누군가 기계 안에 있어요');return}if(!p.al||p.st||DP[a.dp||0].f!==p.fl){L.push(p.n+': 기계에 들어갈 수 없어요');return}
+ T.hw=T.hw||{r:0,n:0};T.hw.n++;p.iw=1;T.wc={u:Object.keys(T.ps).find(k=>T.ps[k]===p),k:0,e:0};L.push('⚙ '+p.n+': 기계 안으로 들어갔다');wcTick(T,p,L)}
+function reqOk(p,q){if(!q||!q.req)return true;if(q.req=='bd')return !!p.bd;return(!q.req.eg||eg(p)>=q.req.eg)&&(q.req.s||[]).every(([i,g])=>gr(p.s[i])>=g)}
+function reqTxt(q){if(!q||!q.req)return'';if(q.req=='bd')return' · 요구: 대머리';return' · 요구: '+[q.req.eg?'등급 '+GN[q.req.eg-1]:'']+(q.req.s||[]).map(([i,g])=>SN[i]+' '+GN[g-1]).join(', ')}
+function wtime(p){const v=Math.max(10,Math.min(85,p.s[2]));return Math.round(v<=37.5?62-(v-10)*22/27.5:40-(v-37.5)*15/47.5)}
+function ltTick(T,L){T.ab.forEach(a=>{if(AB[a.id].sp=='lantern'&&a.es){const dp=a.dp||0;if((T.cl[dp]||0)>0){T.cl[dp]--;dth(T,1,L);L.push('📉 '+DN[dp]+' 사무직 1명 실종')}}})}
+function kcTick(T,L){const a=T.ab.find(x=>AB[x.id].sp=='spider'),n=T.kc||0;if(!a||!n)return;const v=Math.floor(n/2)+1;T.en+=v;T.eb[a.id]=(T.eb[a.id]||0)+v;L.push('🕸 고치 '+n+'개 → PE +'+v)}
+function nzTick(T,L){const a=T.ab.find(x=>AB[x.id].sp=='mhz');if(!a||a.c==null)return;const mx=AB[a.id].c;if(a.c>=mx){if((T.nz||[]).length){T.nz=[];L.push('📻 카운터 회복 — 노이즈가 사라졌어요')}return}
+ T.nz=T.nz||[];if(a.c>0&&!T.nz.length)return;
+ const op=Object.keys(T.dl||{}).map(Number).filter(d=>T.dl[d]>0&&!T.nz.includes(d));if(op.length){const d=op[R(op.length)];T.nz.push(d);L.push('📻 '+DN[d]+'에 노이즈 발생')}
+ Object.values(T.ps).forEach(p=>{if(!p.al||p.hp<=0)return;const d=p.lc!=null?p.lc:(p.dp||0);if(T.nz.includes(d)){const v=Math.max(1,Math.round(mS(p)*.05));p.sp=Math.max(0,p.sp-v);L.push('   📻 '+p.n+': 노이즈로 정신력 -'+v)}})}
+function shyTick(T,L,sw){T.ab.forEach((a,i)=>{if(AB[a.id].sp!='shy'||sw.has(i))return;if(a.ex==null)a.ex=3;a.et=(a.et||0)+1;if(a.et>=2){a.et=0;a.ex=a.ex<=1?2:a.ex>=5?4:a.ex+(R(2)?1:-1)}})}
+function wallPulse(T,a,L){const dp=a.dp||0;a.c=AB[a.id].c;L.push('🧱 '+dn(T,a.id)+': 카운터 0 — '+DN[dp]+' 직원 전원에게 WHITE 피해');Object.values(T.ps).forEach(p=>{if(p.al&&(p.lc!=null?p.lc:(p.dp||0))===dp){const v=Math.max(1,Math.round(mS(p)*.3));hit(T,p,1,v);L.push('   '+p.n+': 정신력 피해')}})}
+function cherryOn(T,a,L){const alive=Object.values(T.ps).filter(p=>p.al).length,cand=Object.values(T.ps).filter(p=>p.al&&!p.st),mx=AB[a.id].c;
+ if(alive<=1||!cand.length){a.c=mx;L.push('🌸 '+dn(T,a.id)+': 매혹이 일어나지 않았다');return}
+ const k=Math.min(alive-1,Math.max(1,Math.floor(alive/2)));let n=0;while(n<k&&cand.length){const p=cand.splice(R(cand.length),1)[0];p.st='매혹';p.mh=4;p.cg=0;n++;L.push('🌸 '+p.n+': 홀린 듯 벚꽃의 무덤으로 향한다')}
+ const ops=Object.keys(T.cl).map(Number).filter(d=>T.cl[d]>0),m=2+R(3);a.cc=[];for(let j=0;j<m&&ops.length;j++)a.cc.push(ops[R(ops.length)]);
+ a.cmt=4;a.cm=1;a.ab=0;L.push('🌸 사무직 '+a.cc.length+'명도 홀린 듯 이동했다')}
+function chTick(T,L){T.ab.forEach(a=>{if(AB[a.id].sp!='cherry'||a.cm!=1)return;
+ Object.values(T.ps).forEach(p=>{if(!p.al||p.st!='매혹')return;p.mh--;if(p.mh<=0){p.hp=0;p.st=null;a.ab=1;L.push('🌸 '+p.n+': 나무 속으로 끌려 들어갔다')}});
+ if(a.cmt>0){a.cmt--;if(a.cmt<=0){let n=0;(a.cc||[]).forEach(d=>{if((T.cl[d]||0)>0){T.cl[d]--;dth(T,1,L);n++}});a.cc=[];if(n)L.push('🌸 사무직 '+n+'명이 나무 속으로 끌려 들어갔다')}}
+ if(a.cmt<=0&&!Object.values(T.ps).some(p=>p.al&&p.st=='매혹')){if(a.ab){a.cm=2;L.push('🌸 매혹이 끝났다 — 카운터는 0으로 유지된다')}else{a.cm=0;a.c=AB[a.id].c;L.push('🌸 모든 직원의 매혹이 풀려 카운터가 복구되었다')}}})}
+function ldTick(T,L){Object.values(T.ps).forEach(p=>{if(p.cb>0){p.cb--;if(p.cb<=0){p.cb=0;p.sp=Math.min(p.sp,mS(p))}}});Object.values(T.ps).forEach(p=>{if(!p.al||p.st!='고독')return;const dm=Math.max(1,Math.round(mS(p)*.1));hit(T,p,1,dm);L.push('🌑 '+p.n+': 고독으로 정신력 피해');p.ld=(p.ld||0)-1;if(p.ld<=0){p.st=null;p.ld=0;L.push('   '+p.n+': 고독에서 벗어났다')}})}
+function slDie(T,L){const s=Object.values(T.ps).filter(p=>p.al&&p.sl);if(!s.length)return;T.nodth=1;s.forEach(p=>{p.hp=0;p.sl=0;p.st=null});post(T,L);T.nodth=0}
+function voidCry(T,E,b,L){if(E.sp!='void'||b.hp<=0||R(100)>=30)return;L.push('📢 공허한 꿈-1의 울음소리! 부서 전체에 WHITE 피해');Object.values(T.ps).forEach(p=>{if(!p.al)return;const w=p.st=='수면'&&!p.sl;hit(T,p,1,12);if(w){p.st=['패닉','도주','분노'][p.tr];L.push('   '+p.n+': 눈을 뜨며 '+p.st+' 상태')}})}
+function dth(T,n,L){if(!(n>0)||T.nodth)return;const b=Math.floor((T.dd||0)/5);T.dd=(T.dd||0)+n;const k=Math.floor(T.dd/5)-b;for(let j=0;j<k;j++)T.ab.forEach(a=>{if(AB[a.id].sp=='pink'&&a.c!=null){a.c--;L.push('   '+dn(T,a.id)+': 하루 사망 5명 → 카운터 감소')}})}
+function pinkGuard(T,p,a,L){a.t=null;if(a.c!=null)a.c--;p.pr=3;L.push('🛡 '+p.n+': '+dn(T,a.id)+'에게 보호를 의뢰했다 (3턴)');if(eg(p)<3&&!p.st){p.st=['패닉','도주','분노'][p.tr];p.fp=1;p.pq=1;L.push('   '+p.n+': 통제 불능 — '+p.st+' 상태')}}
+function bapt(T,p,L){if(!p||!p.al||p.hp<=0||p.bp)return 0;p.bp=1;if(!(p.gi||[]).includes(PD))p.gi=(p.gi||[]).concat([PD]);gEq(p,PD);L.push('💉 '+p.n+': 세례를 받았다 — 에고 기프트 획득 (축복)');return 1}
+function pdCall(T,a,L){const c=Object.keys(T.ps).filter(u=>T.ps[u].al&&!T.ps[u].bp);a.c=AB[a.id].c;if(!c.length){L.push('🔔 '+dn(T,a.id)+': 카운터 0 — 부름에 응할 직원이 없어요');return}const p=T.ps[c[R(c.length)]];L.push('🔔 '+dn(T,a.id)+'가 '+p.n+'를 불렀다 (카운터 0)');bapt(T,p,L)}
+function pbTick(T,L){Object.values(T.ps).forEach(p=>{if(!p.al){p.pbp=0;return}const pn=['패닉','도주','분노'].includes(p.st);if(pn&&!p.pbp){T.ab.forEach(a=>{if(AB[a.id].sp=='bird'&&a.c!=null&&a.c>0){a.c--;L.push('   🕊 '+p.n+' 패닉 → '+dn(T,a.id)+' 카운터 감소')}})}if(pn&&!p.pbp&&p.sk>0&&!p.fp&&p.hp>0){p.hp=0;L.push('📖 '+p.n+': 책을 읽은 자가 패닉에 빠지자 그 자리에서 소멸했다');post(T,L)}if(!pn)p.fp=0;p.pbp=pn?1:0})}
+function emChk(T,L){pbTick(T,L);const ps=Object.values(T.ps),n=ps.length;const bad=ps.filter(p=>(p.st&&p.st!='수면'&&p.st!='고독'&&p.st!='매혹')||(!p.al&&!p.dz)).length,eg=T.bo?(T.bo.ord?1:T.bo.e?T.bo.ag:GI.indexOf(AB[T.ab[T.bo.i].id].eg||AB[T.ab[T.bo.i].id].g)+1):0;let lv=0;if(eg>0||bad>=1)lv=1;if(eg>=4||bad>=Math.max(2,Math.ceil(n/2)))lv=2;if(T.bj||(n>0&&bad>=n))lv=3;
+ const pv=T.em||0;if(lv<pv){T.em=lv;L.push('🕊 비상 단계가 '+lv+'단계로 내려갔어요')}if(lv>pv){T.em=lv;L.push('🚨 '+lv+'단계 비상 ('+['','첫 번째','두 번째','세 번째'][lv]+' 나팔)');if(pv<2&&lv>=2)T.ab.forEach(a=>{if(AB[a.id].sp=='plague'&&a.c!=null){a.c--;L.push('   '+dn(T,a.id)+': 2단계 비상 → 카운터 감소')}})}}
+function chkBreak(T,L,fi){T.ab.forEach(a=>{if(AB[a.id].sp=='wall'&&a.c!=null&&a.c<=0)wallPulse(T,a,L)});T.ab.forEach(a=>{if(AB[a.id].sp=='cherry'&&a.c!=null&&a.c<=0&&!a.cm)cherryOn(T,a,L)});T.ab.forEach(a=>{if(AB[a.id].sp=='lady'&&a.c!=null&&a.c<=0&&!a.ln){a.ln=1;L.push('🌑 '+dn(T,a.id)+'의 격리실 내부에 검은 형체들이 생겨났다')}});T.ab.forEach(a=>{if(AB[a.id].sp=='lantern'&&a.c!=null&&a.c<=0)a.es=1});T.ab.forEach(a=>{if(AB[a.id].sp=='plague'&&a.c!=null&&a.c<=0)pdCall(T,a,L)});const i=fi!=null?fi:T.ab.findIndex(a=>a.c!=null&&a.c<=0&&AB[a.id].sp!='plague'&&AB[a.id].sp!='mhz'&&AB[a.id].sp!='lantern'&&AB[a.id].sp!='lady'&&AB[a.id].sp!='cherry'&&AB[a.id].sp!='wall');if(i<0)return 0;const a=T.ab[i],ag=GI.indexOf(AB[a.id].eg||AB[a.id].g)+1;T.eh=Math.max(T.eh||0,ag);a.c=AB[a.id].c;a.es=0;const h0=AB[a.id].hp||80*ag;if(AB[a.id].sp=='pink')Object.values(T.ps).forEach(p=>{if(p.al&&!p.st&&eg(p)<3){p.st=['패닉','도주','분노'][p.tr];p.fp=1;L.push('😵 '+p.n+': 통제 불능 — '+p.st+' 상태')}});if(AB[a.id].sp=='void')Object.values(T.ps).forEach(p=>{if(p.al&&!p.st){p.st='수면';p.sl=0;L.push('💤 '+p.n+': 빛을 받아 잠들었다')}});T.bo={i,hp:h0,mx:h0,t:0,sg:Math.round(h0*.8),smx:Math.round(h0*.8),stg:0};if(AB[a.id].sp=='bird')T.bo.pn=Object.values(T.ps).some(p=>p.al&&['패닉','도주','분노'].includes(p.st));T.fr=(T.fr||0)+1;T.ph='fight';rollDice(T);L.push(`💥 ${dn(T,a.id)} 탈출! 제압작전 개시`);emChk(T,L);return 1}
+function hit(T,p,d,dm,raw){if(p.pr>0)dm=Math.ceil(dm*.7);if(d==1&&p.sk>0)dm=Math.ceil(dm*(1+.1*p.sk));if(!raw)dm=Math.ceil(dm*((p.rs||[1,1,1,1])[d]||1));if((d==0||d==2)&&p.ai!=null&&AB[p.ai].a&&AB[p.ai].a.fx=='pen'&&R(100)<5){p.sp=Math.min(mS(p),p.sp+10)}if(d==0||d==2)p.hp-=dm;if(d==1||d==2)p.sp-=dm;if(d==3)p.hp-=Math.ceil(mH(p)*dm/60)}
+function post(T,L){Object.values(T.ps).forEach(p=>{if(!p.al)return;if(p.sp<=0&&!p.st){p.st=['패닉','도주','분노'][p.tr];L.push(`${p.n}: ${p.st} 상태`)}p.sp=Math.max(0,p.sp);if(p.hp<=0){p.al=0;p.bd=0;p.bp=0;p.yc=0;p.yg=null;p.yx=0;p.iw=0;p.pr=0;p.pq=0;p.sl=0;p.ld=0;p.cr=0;p.gi=[];p.ge=[];L.push(`☠ ${p.n} 사망`);dth(T,1,L);const lost=(T.eq||[]).filter(e=>T.ps[e.u]===p);if(lost.length){T.eq=T.eq.filter(e=>T.ps[e.u]!==p);L.push(`   에고 장비 소실: ${lost.map(e=>eN(e.id,e.k)).join(', ')}`)}}});refEq(T)}
+const TM=[[1.1,.7],[.7,1.2],[1.2,1.2],[1.5,1.3]],WPT=[[3,6],[4,8],[5,10],[7,13],[9,17],[12,22]],BM=[.6,1,1.4,1.8,2.2,2.8],ENR=[[3,7],[4,9],[6,14],[10,20],[14,30]],SR=[[1,6],[1,7],[2,8],[2,9],[3,10],[3,10]],SC=[1,1,1,2,2,3],ER=[[3,6],[3,7],[4,8],[4,10],[4,11]],AN={atk:'공격',def:'방어',calm:'진정'};
+const rr=r=>r[0]+R(r[1]-r[0]+1);
+const EL=[5,4,3,2,1],EC=[12,22,42,60,222],eg_=i=>GI.indexOf(AB[i].g),eqg=(i,k)=>GI.indexOf((AB[i][k]||{}).g||AB[i].g),ecost=(i,k)=>{const q=AB[i][k];return q&&q.c!=null?q.c:Math.round(EC[eqg(i,k)]*(.9+((i*7)%5)*.05))},GS=['머리1','머리2','입1','입2','손1','손2','브로치1','브로치2','눈','뺨','얼굴','오른쪽 등','왼쪽 등','스페셜'],gfo=(p,i)=>{const d=AB[i];if(!d)return null;if(d.gfs)return d.gfs[Math.max(0,Math.min(d.gfs.length-1,(p.cr||1)-1))];return d.gf||null},gEq=(p,i)=>{const g=AB[i]&&AB[i].gf;if(!g)return;if(!p.ge||p.ge.length!=14)p.ge=Array(14).fill(-1);if(p.ge[g.sl]===PD&&i!==PD)return;p.ge[g.sl]=i},
+gmh=p=>(p.ge||[]).reduce((a,i)=>a+(i>=0&&gfo(p,i)?gfo(p,i).mhp||0:0),0),axf=(p,k)=>(p.ge||[]).reduce((a,i)=>a+(i>=0&&gfo(p,i)&&gfo(p,i).ax&&p.ai===i?gfo(p,i).ax[k]||0:0),0),gms=p=>axf(p,'msp')+(p.ge||[]).reduce((a,i)=>a+(i>=0&&gfo(p,i)?gfo(p,i).msp||0:0),0),gsp=p=>(p.hh?3:0)+(p.ge||[]).reduce((a,i)=>a+(i>=0&&gfo(p,i)&&gfo(p,i).spd?Math.max(1,Math.floor(gfo(p,i).spd*.25)):0),0)+axf(p,'cs'),gfr=(p,d)=>(p.ge||[]).reduce((a,i)=>a+(i>=0&&gfo(p,i)&&(!gfo(p,i).only||AB[i]===d)?gfo(p,i).rate||0:0),0);
+AB.forEach((a,i)=>{a.code=a.code||'T-00-'+String(i).padStart(2,'0');a.desc=a.desc||'[임시] 한 줄 설명';a.mn=a.mn||1;a.tp=a.tp||['[임시] 관리법']});
+const HDM=[[1,2],[2,4],[3,6],[5,9],[8,14]],RDP=[0,.1,.2,.3,.4,.5],UC=[[5,3,3,5],[10,5,5,10],[15,6,6,15],[20,8,10,20],[30,10,15,25]],mnn=i=>AB[i].mn||1,
+ ucost=(i,k)=>AB[i].uc&&AB[i].uc[k]!=null?AB[i].uc[k]:Math.max(1,Math.round(UC[eg_(i)][k]*(.88+((i*5+k*3)%7)*.04))),
+ UL=(T,i)=>{if(AB[i].chn){const h=T[AB[i].ck]||{r:0,n:0},m=AB[i].cd.map(([k,v])=>!v||h[k]>=v?1:0);return{n:m.every(x=>x)?1:0,m,p:[],e:0}}return (T.un||{})[i]||{}},utot=i=>AB[i].chn?6:6+mnn(i),
+ ucnt=(T,i)=>{const u=UL(T,i);return (u.n?1:0)+(u.m||[]).filter(x=>x).length+(u.p||[]).filter(x=>x).length+(u.e?1:0)},
+ upct=(T,i)=>ucnt(T,i)/utot(i),hasN=(T,i)=>!!UL(T,i).n,nmOf=(T,i)=>AB[i].n0&&upct(T,i)<.5?AB[i].n0:AB[i].n,gdOf=(T,i)=>AB[i].dg&&upct(T,i)>=.5?AB[i].dg:AB[i].g,dn=(T,i)=>hasN(T,i)?nmOf(T,i):'???('+AB[i].code+')',
+ rateOf=(p,d,w)=>{if(d.sp=='bald'&&p.bd)return 95;const gb=gfr(p,d);if(d.rt)return Math.max(0,Math.min(95,d.rt[w][Math.min(5,gr(p.s[w]))-1]+Math.floor(p.s[2]/5)+gb-(d.sp=='mhz'?3*(gr(p.s[0])-1):0)));return Math.max(5,Math.min(95,d.b[w]+5*(gr(p.s[w])-1)+Math.floor(p.s[2]/5)+gb))},PM=v=>v>=80?'매우 높음':v>=60?'높음':v>=40?'보통':v>=20?'낮음':'매우 낮음',WN=['본능','통찰','애착','억압'];
+AB[0].wn='참회';AB[0].an='참회';
+Object.assign(AB[0],{n:'단 한번의 악과 수백 가지의 선행',code:'O-03-03',desc:'그것은 사람의 대화를 통해 드러날 수 있는 ‘악’ 을 먹는다.',g:'ZAYIN',m:10,c:null,t:0,d:1,dm:[1,3],rb:[8,4],
+ rt:[[50,40,30,30,30],[70,70,50,50,50],[70,70,70,70,70],[50,40,30,30,30]],b:[50,70,70,50],mn:2,uc:[8,4,2,8],
+ tp:['단 한번의 악과 수백 가지의 선행은 작업의 결과가 좋음일 때 작업을 진행한 직원의 정신력을 회복시켰다. 당시 작업을 진행했던 아담 직원은 정신이 맑아지는 기분이었다고 말했다.','단 한번의 악과 수백가지의 선행의 작업에서 모든 E-Box를 PE-Box로 생산하자 단 한번의 악과 수백가지의 선행이 해당 부서에 있던 모든 직원의 정신력을 회복시켰다.'],
+ wn:'참회',an:'참회',w:{g:'ZAYIN',t:1,r:0,dm:[5,7],c:15,lim:5,sdt:'보통',fx:'pen',fxt:'정의 2등급 이상: 공격 시 5% 확률로 정신력 10 회복'},a:{g:'ZAYIN',rs:[.9,.8,.9,2],c:10,fx:'pen',fxt:'R·B 속성 피격 시 5% 확률로 정신력 10 회복'},
+ gf:{n:'참회 (기프트)',sl:0,ch:5,rate:10,only:1,msp:2}});
+Object.assign(AB[20],{n:'뚜껑 따인 웰치어스',code:'F-05-52',desc:'어디선가 갈매기 울음소리가 들려온다.',g:'ZAYIN',m:10,c:null,t:0,d:0,dm:[1,2],rb:[8,5],sp:'can',
+ rt:[[70,70,60,60,60],[70,70,60,60,60],[50,50,40,40,40],[50,50,40,40,40]],b:[70,70,50,50],mn:5,uc:[4,4,4,4],
+ tp:['작업 완료 시 이 환상체의 중앙의 자판기에서 음료수 캔이 배출된다. 배출되는 음료의 종류는 작업 유형에 따라 바뀌는 것으로 보인다.','<테스트 결과 W-1=None>붉은 캔의 음료가 배출됨. 해당 음료를 섭취한 대상은 독특한 향과 단맛이 느껴졌으며, 기운이 솟는 기분이라고 표현함. 이후 피험자의 체력 회복을 확인함.','<테스트 결과 W-2=None>푸른 알루미늄 캔에 강한 탄산을 가진 무향의 액체가 나옴. 해당 음료는 정신력 회복에 효과적인 것으로 밝혀짐.','<테스트 결과 W-3, W-4=None>외형, 성분, 맛이 보라색 캔의 포도맛 탄산음료와 정확하게 일치하는 음료가 나옴. 해당 음료를 섭취한 대상의 체력과 정신력이 함께 회복되는 것을 발견.','<주의=None>뚜껑 따인 웰치어스의 작업 결과가 나쁨일 때에는 자판기에서 어떠한 음료가 나오더라도 섭취하지 말 것.'],
+ wn:'소다',an:'소다',w:{g:'ZAYIN',t:0,r:1,dm:[1,2],c:20,lim:2,sdt:'매우 빠름'},a:{g:'ZAYIN',rs:[.8,1,1,2],c:15,lim:5},
+ gf:{n:'[임시] 웰치어스 기프트 (이름 미확인)',sl:3,ch:5,mhp:2}});
+Object.assign(AB[15],{n:'너 대머리야',code:'Bald-is-awesome!',desc:'Bald-is-awesome!',g:'ZAYIN',m:5,c:null,t:0,d:2,dm:[1,2],rb:[4,2],sp:'bald',rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],mn:3,uc:[4,2,2,4],
+ tp:['아직도 머리카락이 찰랑거리는 당신은 Bald-is-awesome!빔을 맞으셨습니다.','Bald-is-awesome!빔을 맞은 직원들이 너 대머리야...의 작업을 진행하지 않으면 이번 달 안에 나머지 직원들의 모든 머리가 빠지고 대머리가 됩니다.','아직 늦지 않았습니다. 30...29...28....'],
+ wn:'터프',an:'터프',w:{g:'TETH',t:1,r:1,req:'bd',c:15},a:{g:'ZAYIN',req:'bd',rs:[1,1,.8,2],c:10},gf:{n:'[임시] 너 대머리야 기프트',sl:8,ch:5,rate:2,spd:2}});
+Object.assign(AB[28],{n:'역병의사',code:'O-01-45',desc:'내가 너의 모든 질병을 고쳐 너를 낫게 하리라.',g:'ZAYIN',m:10,c:1,t:0,d:1,dm:[1,2],rb:[8,4],sp:'plague',ni:1,noeq:1,
+ rt:[[40,40,40,40,40],[60,60,60,60,60],[60,60,60,60,60],[60,60,60,60,60]],b:[40,60,60,60],mn:5,uc:[8,3,3,100000],
+ tp:['작업 결과가 나쁨일 경우 클리포트 카운터가 감소하였다.','작업 결과가 좋음일 경우 클리포트 카운터가 감소하였다. 이후 역병의사는 작업을 진행한 직원에게 세례를 내렸다.','2단계 비상 상황이 되자 클리포트 카운터가 감소하였다.','클리포트 카운터가 0이 되자 그의 부름을 받은 직원이 격리실로 들어가 세례를 받았다.','역병의사의 입맞춤을 받은 직원은 축복받은 자로 새롭게 태어날 것이다.'],
+ gf:{n:'축복',sl:13,ch:0,mhp:6,msp:6,rate:6,spd:6,mv:6}});
+Object.assign(AB[33],{n:'요정의 축제',code:'F-04-83',desc:'보살핌을 받는 동안은 모든 것이 평화로워진다.',g:'ZAYIN',m:10,c:null,t:0,d:0,dm:[1,2],rb:[6,3],sp:'fairy',
+ rt:[[70,70,70,70,70],[50,40,30,30,30],[70,60,50,50,50],[50,40,30,30,30]],b:[70,50,70,50],mn:3,uc:[3,4,3,3],
+ tp:['작업 결과가 보통 이상일 경우 직원 주위에 작은 요정들이 생성된다.','작은 요정들은 일정 시간 동안 해당 직원의 체력을 지속적으로 회복시켜 준다.','작은 요정들이 부여된 동안 직원이 다른 관리 작업을 하러 갈 경우 직원은 즉시 사망하며, 이후 작은 요정들에게 먹힌다.'],
+ wn:'날개짓',an:'날개짓',w:{g:'ZAYIN',t:0,r:0,dm:[5,7],c:15,lim:5,sdt:'보통'},a:{g:'ZAYIN',rs:[.8,.8,1,2],c:10,lim:5},
+ gf:{n:'날개짓',sl:5,ch:5,rate:2,spd:2}});
+Object.assign(AB[7],{n:'당신은 행복해야합니다',code:'T-09-94',desc:'기계 안에서 시술을 받은 많은 사람들이 안식을 되찾고 건강해졌다.',g:'ZAYIN',m:0,c:null,t:1,d:0,sp:'happy',chn:1,ck:'hu',cd:[['r',0],['r',2],['r',6],['r',12],['n',5]],noeq:1,noover:1,mn:5,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['군데군데 낡아버린 뜻을 알 수 없는 시술용 기계장치.','두개골을 이리저리 헤집는 기계의 기관들은 신경조직을 안전하게 하면서도 효과적으로 파괴하는 데 적합하게 만들어졌다.','기계 안에서 시술을 받은 많은 사람들이 안식을 되찾고 건강해졌다.','당신은, 당신의 도시를 사랑하십니까? 라는 질문에 \'그렇다\'라고 대답한 자들은 병이 나은 자들이었고 \'아니다\'라고 답한 자들은 퇴원할 수 없었다.','기계를 오래 사용할수록 직원들은 좋아진다. 더불어 오래 사용할수록 질문 역시 빠르게 바뀌어간다.'],
+ us:['대상을 사용하는 직원은 모든 능력치가 상승한다.','사용 시간이 지속될수록 상승하는 능력치의 값이 증가한다.','개체의 상단이 YES 상태일 때 사용을 종료해야만 한다. NO 상태에서 사용을 종료할 경우 지금까지 상승한 능력치만큼 모든 능력치가 하락한다.','상승한 능력치는 다음 날이 되면 원래대로 돌아온다. 단, 한 번이라도 대상의 효과로 총 200 이상의 능력치 상승을 겪은 직원은 날이 지나도 소멸되었다.','<주의=None> 해당 대상을 5번 이상 사용한 직원이 그 자리에서 폭발한 사례가 확인되었다.']});
+Object.assign(AB[5],{n:'무엇이든 바꿔드립니다',code:'T-09-85',desc:'모든 게 나아질 것입니다.',g:'ZAYIN',m:0,c:null,t:1,d:0,sp:'wcan',chn:1,ck:'hw',cd:[['r',0],['r',2],['r',6],['r',12],['n',5]],noeq:1,noover:1,mn:5,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['\'무엇이든 도와드립니다\'가 가정에서 큰 인기를 끌자 차기작으로 출시된 가정용 로봇 2탄이다.','xx사의 시리즈답게 각종 다양한 기능들이 내장되어 있다.','당신의 아이, 맨날 말썽만 피우고 울기만 하나요? 바꿔드립니다.\n당신의 몸, 뚱뚱하거나 살이 쪄져서 마음에 들지 않나요? 바꿔드립니다.\n당신의 집, 돈이 부족하여 전력에 필요한 에너지를 가질 수가 없나요?\n바꿔드립니다.','사용 방법은 간단합니다. 기계를 연 후 안으로 들어가 닫음 버튼을 누르십시오. 모든 게 나아질 것입니다.','직원이 안에 들어가면 에너지를 생성한다. 안은 편안한 모양인지 한번 들어간 직원은 나오지 않는다.'],
+ us:['대상 안에 직원을 넣으면 지속적으로 에너지가 생성된다.','대상 안에서 직원은 지속적으로 Red 피해를 받게 된다. 또한 한번 대상 안으로 들어간 직원은 사망할 때까지 나오지 못한다.','사용 시간이 길어질수록 생성되는 에너지의 양이 증가한다.','해당 대상은 클리포트 폭주에 영향을 받지 않는다.','']});
+Object.assign(AB[6],{n:'오래전의 믿음과 약속',code:'T-09-97',desc:'보답받지 못한 마음들은 밑바닥에서 조용히 잠들어간 채 잊혀져갔다.',g:'ZAYIN',m:0,c:null,t:1,d:0,sp:'faith',chn:1,ck:'hf',cd:[['n',0],['n',3],['n',6],['n',9],['n',12]],noeq:1,mn:5,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['격리실에 매달려 있는 신비한 구슬.','우리들은 아주 오래전에 반복되어 온 수많은 약속과 믿음들에 대해 알고 있다.','하지만 돌아오는 것은 언제나 허탈과 배신뿐이었다.','보답받지 못한 마음들은 밑바닥에서 조용히 잠들어간 채 잊혀져갔다.','오히려 기대 없는 무욕의 마음으로 시도한다면 생각지도 못한 보답이 주어질 것이다.'],
+ us:['대상을 사용하여 E.G.O 무기를 강화할 수 있다. 강화 시에는 약간의 에너지가 소모된다.','대상을 통해 강화된 무기는 더욱 강력한 공격력을 가지게 된다.','단, 강화 도중 일정 확률로 E.G.O 무기가 소멸할 수 있다.','강화된 무기는 하루가 지나면 대상의 영향이 사라져 원래의 공격력으로 돌아온다.','']});
+Object.assign(AB[8],{n:'조정의 거울',code:'O-09-81',desc:'만족은 순간이지.',g:'ZAYIN',m:0,c:null,t:1,d:0,sp:'mirror',chn:1,ck:'hm',cd:[['n',0],['n',3],['n',6],['n',9],['n',12]],noeq:1,mn:5,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['전신형 거울의 형태를 띠고 있지만 정작 비치는 건 아무것도 없다.','거울이 비추는 건 오직 사람이다. 거울 속 자신을 마주보고 있으면 대상이 뒤바뀐다. 평행 세계의 가능성 중 하나다. 마법적인 힘이다 등등 여러 가지 추측이 오갔지만 확인할 길이 없었다.','거울을 응시한 사람은 겉모습만 같을 뿐, 알맹이는 완벽히 다른 타인이 된다.','거울을 두 번 이상 응시하기 시작하면 인간성이 좀먹혀 최종적으로는 걸어다니는 시체와 다름없어지니 주의해야 한다.','"방금 브라이언 직원이 날 무시하고 걸어가던데. 무슨 일 있었어?"\n"아, 거울을 보았대."\n"본인 몸이 너무 약하게 태어났다고 툴툴대더만. 드디어 마음을 먹었나보네."\n"만족은 순간이지."'],
+ us:['조정의 거울을 마주한 대상은 그동안 쌓아온 능력치가 임의로 조정된다.','동일한 직원이 하루에 2번 이상 조정의 거울을 보게 될 경우, 대상을 마주할 때마다 모든 능력치가 감소하게 된다.','','','']});
+Object.assign(AB[41],{n:'검은 군단',n0:'분홍 군단',dg:'ALEPH',eg:'ALEPH',pg:'ALEPH',hp:450,rs:[1.2,.6,1,.8],code:'D-01-106',desc:'인간의 마음은 분홍색과 같아 분홍색 군복을 입는다면 사람의 마음에 위장할 수 있습니다.',g:'ZAYIN',m:30,c:3,t:0,d:1,dm:[7,9],rb:[23,13],sp:'pink',ni:1,
+ rt:[[0,0,0,0,0],[40,40,40,50,50],[50,50,50,55,55],[30,30,30,30,30]],b:[0,40,50,30],mn:7,uc:[30,10,10,30],
+ tp:['검은 군단에게 직원의 보호를 의뢰할 수 있다. 단, 해당 작업 명령 시 클리포트 카운터가 감소하므로 주의해야 한다.','검은 군단은 보호 대상의 방어력을 상승시키고 인근 구역의 직원들을 지속적으로 회복시켜주었다. 단, 직원의 등급이 3등급 미만일 경우에는 보호를 받는 동안 직원이 통제 불능 상태가 되었다.','억압 작업을 완료하자 클리포트 카운터가 감소하였다.','시설 내에서 직원이 5명씩 사망할 때마다 클리포트 카운터가 감소하였다.','작업 결과가 나쁨일 경우 클리포트 카운터가 감소하였다.','환상체를 제압할 때마다 클리포트 카운터가 증가하였다.','탈출 시 검은 군단과 3등급 미만 직원이 조우할 경우 통제 불능 상태가 되며, 다른 직원을 공격하는 모습을 보였다. 해당 환상체의 공격으로 정신력이 0이 된 직원 또한 위와 동일한 상태가 되었다.'],
+ wn:'분홍',an:'분홍',w:{g:'ALEPH',t:1,r:1,dm:[20,24],c:222,lim:1,sdt:'보통',req:{eg:5,s:[[1,5]]}},a:{g:'ALEPH',rs:[.5,.3,.4,1],c:120,lim:1,req:{eg:5,s:[[1,5]]}},
+ gf:{n:'분홍',sl:1,ch:1,msp:5,spd:5,syn:1}});
+Object.assign(AB[18],{n:'1.76 MHz',code:'T-06-27',desc:'이건 우리가 절대 잊어서는 안 되는 그날의 기록이다.',g:'TETH',m:12,c:4,t:0,d:1,dm:[2,4],rb:[10,6],sp:'mhz',nw:1,
+ rt:[[40,40,40,40,40],[40,30,20,20,20],[20,10,0,0,0],[55,55,60,60,60]],b:[40,40,20,55],mn:7,uc:[12,4,2,12],
+ tp:['용기가 높은 직원일수록 1.76 MHz의 작업에 낮은 성공률을 보였다. 1.76 MHz의 영향을 과도하게 받아 폭력성이 급격하게 증가한 것이 주요 원인으로 판단된다.','작업 결과가 보통일 때 보통 확률로 클리포트 카운터가 감소하였다.','작업 결과가 나쁨일 때 높은 확률로 클리포트 카운터가 감소하였다.','작업을 진행하던 직원이 패닉에 빠지자 클리포트 카운터가 감소하였다.','작업 결과가 좋음으로 나오자 클리포트 카운터가 상승하였다. 모든 E-Box를 PE-Box로 생산하였을 때에는 클리포트 카운터가 2단계 상승한 모습을 보였다.','시설 곳곳에 노이즈가 생성된 것을 감시카메라의 화면을 통해 발견하였다. 1.76 MHz의 클리포트 카운터가 0이 된 이후부터 해당 현상이 나타난 것으로 보아 노이즈는 1.76 MHz의 격리실에서부터 발생한 것으로 보인다.','노이즈가 나타난 구역의 수는 해당 환상체의 클리포트 카운터가 완전히 회복되기 전까지 지속적으로 증가하였다.'],
+ an:'노이즈',a:{g:'TETH',rs:[1.2,.7,.6,2],c:30,lim:1,req:{s:[[1,2]]}},
+ gf:{n:'무전기',sl:6,ch:5,spd:2,mv:2,ax:{msp:-10,cs:1}}});
+Object.assign(AB[31],{n:'거미봉오리',code:'T-02-43',desc:'차마 고치가 된 직원 시체를 구하러 가겠다는 사람은 없었다.',g:'TETH',m:14,c:null,t:0,d:0,dm:[2,3],rb:[15,7],sp:'spider',mvx:2.5,
+ rt:[[60,60,65,65,65],[-50,-50,-50,-50,-50],[50,50,55,55,55],[40,40,45,45,45]],b:[60,0,50,40],mn:3,uc:[12,4,4,12],
+ tp:['지혜 1등급인 직원들은 격리실 바닥의 새끼 거미들을 밟아 없애는 모습을 보였다. 거미봉오리는 자신의 새끼를 밟은 그들을 고치로 만들었다.','격리실에서 통찰 작업을 진행하자 거미봉오리가 격리실 내부를 청소하던 직원을 빠르게 고치로 만들었다.','거미봉오리의 고치는 자체적으로 PE-Box를 생산한다. 고치의 개수가 많아질수록 더욱 많은 PE-Box가 생성되었다.'],
+ wn:'적안',an:'적안',w:{g:'TETH',t:0,r:0,dm:[7,9],c:20,lim:3,sdt:'보통'},a:{g:'TETH',rs:[.8,.8,.8,2],c:20,lim:1,req:{s:[[0,2]]}},
+ gf:{n:'적안',sl:8,ch:5,rate:2,spd:2}});
+Object.assign(AB[44],{n:'고기 초롱',code:'O-04-84',desc:'그건 꽃이 아니야. 당장 근처에 있는 모든 직원들에게 대피 명령을 내려.',g:'TETH',m:14,c:1,t:0,d:1,dm:[1,3],rb:[11,7],sp:'lantern',hp:330,rs:[1.5,.8,1,2],
+ rt:[[45,45,50,55,50],[60,60,60,60,60],[45,45,45,45,45],[30,30,30,30,30]],b:[45,60,45,30],mn:3,uc:[12,4,4,16],
+ tp:['작업의 결과가 나쁨일 경우 클리포트 카운터가 감소하였다.','작업의 진행 시간이 40초 이하였을 경우 클리포트 카운터가 감소하였다.','탈출 시 직원과 시설은 해당 환상체를 감지하지 못한다. 따라서 관리자가 직접 제압을 명령해야 한다.'],
+ wn:'초롱',an:'초롱',w:{g:'TETH',t:2,r:0,dm:[12,18],c:25,lim:2,sdt:'느림'},a:{g:'TETH',rs:[.8,.7,1.2,2],c:25,lim:2},
+ gf:{n:'초롱',sl:3,ch:5,mhp:5}});
+Object.assign(AB[56],{n:'공허한 꿈',nf:'공허한 꿈-1',code:'T-02-99',desc:'내 꿈을 먹어주세요.',g:'TETH',m:14,c:2,t:0,d:2,dm:[1,3],rb:[9,7],sp:'void',hp:250,rs:[1.5,.8,1.2,2],
+ rt:[[45,45,45,45,45],[45,45,45,45,45],[60,60,60,60,60],[20,20,20,20,20]],b:[45,45,60,20],mn:6,uc:[12,4,2,16],
+ tp:['절제 2등급 미만의 직원은 작업을 완료한 이후 격리실에서 잠들어 버렸다. 잠든 직원들은 이후 다시는 눈을 뜨지 않았다.','작업 결과가 나쁨일 경우 클리포트 카운터가 감소하였다.','탈출한 공허한 꿈의 빛을 받은 직원들은 모두 잠에 빠진다. 해당 직원을 관리자가 직접 흔들어 잠에서 깨울 수 있다.','공허한 꿈은 탈출 후 일정 시간이 경과하자 스스로 격리실로 돌아갔다.','탈출한 상태에서 제압을 진행할 경우 해당 환상체의 외형이 변형되며 공격성을 보이는 상태가 된다. (본 형태의 환상체를 공허한 꿈-1로 칭한다.)','공허한 꿈-1은 때때로 큰 울음 소리를 내며 부서 전체에 White 피해를 주었다. 해당 환상체의 빛으로 인해 잠들어있던 직원은 해당 울음 소리를 듣자 눈을 뜨며 패닉 상태가 되었다.'],
+ wn:'황홀한 꿈',an:'황홀한 꿈',w:{g:'TETH',t:1,r:0,dm:[1,2],c:25,lim:2,sdt:'매우 빠름'},a:{g:'TETH',rs:[1.2,.8,.7,2],c:25,lim:2},
+ gf:{n:'황홀한 꿈',sl:0,ch:8,msp:4}});
+Object.assign(AB[47],{n:'늙은 여인',code:'O-01-12',desc:'생전 그렇게 이야기가 많은 사람이었지만, 끝내 죽을 때만큼은 고독함만이 유일한 청자였다.',g:'TETH',m:14,c:4,t:0,d:1,dm:[1,3],rb:[11,6],sp:'lady',
+ rt:[[45,45,40,40,40],[45,45,50,50,50],[65,65,60,60,60],[30,30,30,30,30]],b:[45,45,65,30],mn:4,uc:[12,4,3,12],
+ tp:['늙은 여인이 아닌 다른 환상체의 작업을 완료하자 늙은 여인의 클리포트 카운터가 감소했다.','늙은 여인의 클리포트 카운터가 0이 되자 격리실 내부에 검은 형체들이 생겨났다. 늙은 여인의 클리포트 카운터가 감소하는 조건에서 착안하여 우리는 이것을 "고독"이라 부르기로 했다.','고독이 쌓여 있을 때 격리실에 입장한 직원에게 고독이 들러붙었다.','고독이 풀릴 때까지 해당 직원은 지속적으로 White 속성의 피해를 입었다. 또한 고독이 사라지기 전까지 해당 직원은 어떠한 작업도 진행할 수 없었다.'],
+ wn:'외로움',an:'외로움',w:{g:'TETH',t:1,r:1,dm:[2,3],c:20,lim:2,sdt:'매우 빠름'},a:{g:'TETH',rs:[1.5,.8,.8,2],c:30,lim:3},
+ gf:{n:'외로움',sl:8,ch:7,rate:3,spd:3}});
+Object.assign(AB[50],{n:'미녀와 야수',code:'F-02-44',desc:'하지만 사실 저주는 되풀이만 될 뿐, 절대 풀리지 않습니다.',g:'TETH',m:12,c:null,t:0,d:1,dm:[2,4],rb:[9,5],sp:'beast',
+ rt:[[40,20,-20,-20,-20],[50,50,40,30,30],[30,15,-50,-50,-50],[65,65,65,65,65]],b:[40,50,30,65],mn:3,uc:[12,4,3,16],
+ tp:['미녀와 야수에게 억압 작업을 진행했을 때 작업의 성공률이 가장 높았다. 억압 작업은 PE-Box 생산에는 효율이 좋으나, 미녀와 야수의 건강 상태를 크게 악화시켰다.','미녀와 야수에게 억압이 아닌 다른 작업을 진행하자 미녀와 야수의 건강 상태가 호전되었다.','연속으로 미녀와 야수에게 억압 작업을 진행했다. 미녀와 야수가 힘없는 소리를 내며 쓰러졌다. 미녀와 야수가 사라지자 작업을 진행했던 줄리엣 직원에게서 이상 현상이 발생했다. 이후 새로운 미녀와 야수가 태어났다.'],
+ wn:'뿔',an:'뿔',w:{g:'TETH',t:0,r:0,dm:[5,9],c:25,lim:3,sdt:'빠름'},a:{g:'TETH',rs:[.8,.8,1.5,2],c:20,lim:3},
+ gf:{n:'뿔',sl:0,ch:5,mhp:2,msp:2}});
+Object.assign(AB[2],{n:'버려진 살인마',code:'T-01-54',desc:'하지만 제일 불쌍한 건 나 같은 것에 죽어나가는 너희들이야.',g:'TETH',m:14,c:1,t:0,d:0,dm:[2,3],rb:[11,7],hp:270,rs:[1,1,1.5,2],
+ rt:[[60,60,50,50,50],[40,40,30,30,30],[50,50,40,40,40],[30,20,0,-80,-80]],b:[60,40,50,30],mn:1,uc:[12,4,5,16],
+ tp:['작업의 결과가 나쁨으로 결정되자 클리포트 카운터가 감소하였다.'],
+ wn:'후회',an:'후회',w:{g:'TETH',t:0,r:0,dm:[12,18],c:25,lim:2,sdt:'느림'},a:{g:'TETH',rs:[.7,1.2,.8,2],c:30,lim:2},
+ gf:{n:'후회',sl:2,ch:5,mhp:2,msp:2}});
+Object.assign(AB[53],{n:'벚꽃의 무덤',code:'O-04-100',desc:'피를 머금은 만큼 황홀감이 짙어지죠.',g:'TETH',m:12,c:3,t:0,d:1,dm:[2,4],rb:[7,4],sp:'cherry',ni:1,
+ rt:[[40,40,40,40,40],[55,55,55,55,55],[55,55,55,55,55],[20,20,20,20,20]],b:[40,55,55,20],mn:6,uc:[12,4,2,16],
+ tp:['작업 결과가 좋음일 경우 클리포트 카운터가 감소하였다.','격리실 안에서 직원이 패닉에 빠질 경우 클리포트 카운터가 감소하였다.','클리포트 카운터가 0이 되자 시설 내의 임의의 직원 몇 명이 홀린 듯 벚꽃의 무덤의 격리실로 이동했다. (해당 상태를 \'매혹 상태\'라 명명한다.)','매혹된 직원이 격리실에 도착하자 직원이 나무 속으로 끌려들어갔다.','매혹된 직원에게 계속 말을 걸자 정상으로 되돌아왔음이 확인되었다. 모든 직원의 매혹이 풀리자 해당 환상체의 클리포트 카운터가 최대 상태로 복구되었다.','직원을 흡수한 이후 다른 직원이 작업을 진행하자 해당 환상체의 클리포트 카운터가 최대 상태로 복구되었다. 또한 시설 내 모든 직원의 체력과 정신력이 회복되었다.'],
+ wn:'벚꽃',an:'벚꽃',w:{g:'TETH',t:1,r:0,dm:[1,2],c:25,lim:1,sdt:'매우 빠름'},a:{g:'TETH',rs:[1.2,.6,.7,2],c:30,lim:1,req:{s:[[2,2]]}},
+ gf:{n:'벚꽃',sl:0,ch:8,mhp:2,mv:2,spd:2}});
+Object.assign(AB[36],{n:'벽을 보는 여인',code:'F-01-18',desc:'견딜 수 없었던 서러움은 오랜 시간 끝에 망집이 되어 무성한 머리카락으로 덮혀나갔다.',g:'TETH',m:14,c:2,t:0,d:1,dm:[2,3],rb:[8,4],sp:'wall',
+ rt:[[55,55,55,55,55],[45,45,0,0,0],[100,100,100,100,100],[55,55,30,30,30]],b:[55,45,100,55],mn:5,uc:[12,4,2,16],
+ tp:['벽을 보는 여인에게 작업을 보낸 직원이 절제 1등급일 경우 그녀의 말을 듣고 뒤를 돌아볼 위험이 있다. 뒤를 돌아본 직원은 즉시 패닉 상태가 된다.','벽을 보는 여인에게 애착 작업을 진행하려 하자 즉시 클리포트 카운터가 감소하였다.','작업 결과가 보통일 때 보통 확률로 클리포트 카운터가 감소하였다.','작업 결과가 나쁨일 때 높은 확률로 클리포트 카운터가 감소하였다.','벽을 보는 여인의 클리포트 카운터가 0이 되면 부서의 모든 직원들이 White 속성의 피해를 입는다.'],
+ wn:'비명쐐기',an:'비명쐐기',w:{g:'HE',t:1,r:1,dm:[7,13],c:20,lim:2,sdt:'보통',req:{s:[[1,2]]},fx:'scream'},a:{g:'TETH',rs:[1.2,.6,1,2],c:30,lim:2}});
+Object.assign(AB[39],{n:'부서져 가는 갑옷',code:'O-05-61',desc:'죽음을 두려워 하지 않는 자에게만 삶을 허락한다.',g:'TETH',m:12,c:null,t:0,d:0,dm:[2,4],rb:[11,6],sp:'crumb',
+ rt:[[50,50,55,55,60],[40,40,40,40,40],[0,0,0,0,0],[60,60,65,65,70]],b:[50,40,0,60],mn:5,uc:[12,4,2,16],
+ tp:['용기 1등급인 조수아 직원을 부서져 가는 갑옷의 격리실에 투입하였다. 작업 종료 후 해당 직원이 목이 절단된 상태로 발견되었다.','부서져 가는 갑옷에게 억압 작업을 진행한 직원에게 부서져 가는 갑옷과 동일한 성분을 가진 장신구(부서져 가는 갑옷-01)가 부착되어있는 것을 발견하였다. 해당 직원은 마치 부서져 가는 갑옷이 자신을 보호해주는 느낌을 받았다고 진술했다.','부서져 가는 갑옷-01이 부착된 직원에게 지속적으로 억압 작업을 하도록 명령하였다. 이후 작업이 완료될 때마다 해당 직원의 신체 검사가 진행되었다. 검사 결과 부착 대상의 억압 작업 횟수에 따라 부서져 가는 갑옷-01이 부착 대상에게 주는 효과가 변화하는 것으로 밝혀졌다.','<주의>부서져 가는 갑옷-01이 부착된 직원에게 애착 작업을 진행하도록 함. 이후 해당 직원이 격리실에 진입하자 부서져 가는 갑옷-01이 사라짐과 동시에 목이 절단되며 해당 직원이 사망함.','<주의>부서져 가는 갑옷-01이 부착된 직원이 과도하게 억압 작업을 시도할 경우 장신구가 대상에게 제공하던 효과가 점차 부정적으로 변화함.'],
+ wn:'필사즉생',an:'필사즉생',w:{g:'HE',t:3,r:0,dm:[7,9],c:35,lim:1,sdt:'빠름',req:{s:[[3,2]]}},a:{g:'TETH',rs:[.6,.9,.9,2],c:30,lim:1,req:{s:[[2,2]]}},
+ gf:{n:'북돋아진 용기',sl:0,ch:0,mv:10,spd:10},
+ gfs:[{n:'북돋아진 용기',sl:0,mv:10,spd:10},{n:'무모해진 용기',sl:0,mhp:-5,mv:10,spd:10},{n:'무모해진 용기',sl:0,mhp:-10,mv:15,spd:15},{n:'무모해진 용기',sl:0,mhp:-20,mv:20,spd:20}]});
+Object.assign(AB[34],{n:'불타버린 소녀',code:'F-01-02',desc:'너에게 간다. 곧 나처럼 잿더미가 되어 버릴 너에게로.',g:'TETH',m:12,c:2,t:0,d:0,dm:[2,4],rb:[8,5],sp:'scorch',hp:120,rs:[.5,2,1,2],
+ rt:[[40,40,40,40,40],[60,60,50,50,50],[30,15,0,-40,-50],[50,50,40,40,40]],b:[40,60,30,50],mn:3,uc:[12,4,4,16],
+ tp:['작업 결과가 보통일 때 보통 확률로 클리포트 카운터가 감소하였다.','작업 결과가 나쁨일 때 높은 확률로 클리포트 카운터가 감소하였다.','탈출한 불타버린 소녀는 목표로 한 직원과 조우하자 5초 후 폭발하였다. 그곳에 있던 많은 수의 직원들이 화상을 입었다.'],
+ wn:'4번째 성냥불',an:'4번째 성냥불',w:{g:'TETH',t:0,r:1,dm:[20,30],c:25,lim:1,sdt:'매우 느림'},a:{g:'TETH',rs:[.6,1,1.2,2],c:25,lim:2},
+ gf:{n:'4번째 성냥불',sl:3,ch:5,mhp:4}});
+Object.assign(AB[43],{n:'수줍은 오늘의 표정',code:'O-01-92',desc:'오늘은 날이 좋네요. 당신은 오늘도 여전히 수줍나요?',g:'TETH',m:12,c:null,t:0,d:2,dm:[2,3],rb:[10,7],sp:'shy',
+ rt:[[50,45,45,40,40],[50,45,45,40,40],[50,45,45,40,40],[50,45,45,40,40]],b:[50,50,50,50],mn:7,uc:[12,4,2,16],
+ tp:['일정 시간마다 해당 개체는 자신의 표정을 교체해간다. 하지만 다른 누군가를 앞에 둘 경우 표정의 교체는 정지한다.','행복한 얼굴에서 화난 얼굴까지 총 5단계의 표정 스펙트럼을 가지며 이를 표정 1(행복), 2(웃음), 3(무표정), 4(슬픔), 5(분노)라 칭한다.','표정 3 상태에서는 특별한 특징이 감지되지 않았다.','표정 2 상태에서는 직원의 작업 성공률이 증가하였으며, 작업이 성공할 때마다 직원의 정신력이 소폭 회복되었다.','표정 4 상태에서 작업을 진행할 경우 작업 중 직원이 받는 피해가 1.5배 가량 증가하였으며, 작업의 성공률이 하락하였다.','표정 5 상태에서 작업을 진행할 경우 작업 중 직원이 받는 피해가 2배 가량 증가하였으며, 작업의 성공률이 대폭 하락하였다.','표정 1 상태에서 작업을 진행할 경우 작업중 직원이 받는 피해가 0.5배 가량 감소하였으며, 작업의 성공률이 상승되었다. 또한 작업이 성공할 때마다 직원의 체력과 정신력이 회복되었다.'],
+ wn:'오늘의 표정',an:'오늘의 표정',w:{g:'TETH',t:2,r:1,dm:[2,3],c:25,lim:2,sdt:'매우 빠름'},a:{g:'TETH',rs:[.8,.6,1.5,2],c:30,lim:1},
+ gf:{n:'오늘의 표정',sl:8,ch:5,msp:-2,rate:4,spd:4}});
+const SHYT=[{r:20,d:.5,h:2,s:2},{r:10,d:1,h:0,s:1},{r:0,d:1,h:0,s:0},{r:-10,d:1.5,h:0,s:0},{r:-25,d:2,h:0,s:0}];
+Object.assign(AB[49],{n:'우주 속의 조각',code:'O-03-60',desc:'눈 앞에 노랫소리가 보인다. 점점 화려하고, 순간으로 당신에게 다가온다..',g:'TETH',m:12,c:2,t:0,d:2,dm:[1,3],rb:[8,4],sp:'cosmos',hp:230,rs:[1,1.5,1,2],
+ rt:[[30,30,20,20,20],[40,40,30,30,30],[60,60,50,50,50],[50,50,40,40,40]],b:[30,40,60,50],mn:3,uc:[12,4,3,16],
+ tp:['작업 결과가 보통일 때 보통 확률로 클리포트 카운터가 감소하였다.','작업 결과가 나쁨일 때 높은 확률로 클리포트 카운터가 감소하였다.','작업을 진행하던 직원이 패닉에 빠지자 클리포트 카운터가 감소하였다.'],
+ wn:'어딘가의 조각',an:'어딘가의 조각',w:{g:'TETH',t:2,r:0,dm:[5,9],c:20,lim:3,sdt:'빠름',fx:'cosmo',fxt:'지혜 4등급 이하: 공격 시 10% 확률로 30초간 최대 정신력 40% 상승'},a:{g:'TETH',rs:[1,1.2,.6,2],c:20,lim:2},
+ gf:{n:'어딘가의 조각',sl:6,ch:5,rate:2,spd:2}});
+Object.assign(AB[23],{n:'징벌 새',code:'O-02-56',desc:'사람들은 아주 오래 전부터 악행을 저질러왔다. 잘못된 일인 줄 스스로 인식하면서도 굳이 행하는 이유는 무엇일까?',g:'TETH',m:12,c:4,t:0,d:0,dm:[2,4],rb:[9,5],sp:'bird',hp:200,rs:[2,2,2,2],
+ rt:[[40,40,40,45,45],[60,60,60,60,60],[55,55,50,50,50],[30,20,10,0,0]],b:[40,60,55,30],mn:4,uc:[12,4,2,16],
+ tp:['다른 환상체의 격리실에 직원이 입장할 때 보통 확률로 징벌 새의 클리포트 카운터가 감소하였다.','직원이 패닉에 빠지자 징벌 새의 클리포트 카운터가 감소하였다.','징벌 새는 탈출 후 일정 시간이 경과하자 스스로 격리실로 돌아갔다.','에반젤린 직원에게 제압을 명령함. 해당 직원이 징벌 새에게 공격을 시도하자 징벌 새의 중심부가 갈라지며 [데이터 편집됨]. 이후 에반젤린 직원의 사망 확인함. 제압 실패.'],
+ wn:'부리',an:'부리',w:{g:'TETH',t:0,r:1,dm:[2,3],c:30,lim:2,sdt:'매우 빠름'},a:{g:'TETH',rs:[.7,.8,1.2,2],c:20,lim:2},
+ gf:{n:'부리',sl:7,ch:5,mv:2,spd:2}});
+Object.assign(AB[30],{n:'피의 욕조',code:'T-05-51',desc:'욕조에는 많은 손들이 떠다닌다. 우리가 사랑했던 사람들의 손이다.',g:'TETH',m:14,c:null,t:0,d:1,dm:[2,4],rb:[10,5],sp:'bath',
+ rt:[[55,55,50,50,50],[45,45,40,40,40],[60,60,60,60,60],[30,20,10,0,0]],b:[55,45,60,30],mn:3,uc:[12,4,3,16],
+ tp:['용기 1등급인 직원이 작업을 완료하자 피의 욕조에서 손이 뻗어 나와 직원을 욕조 속으로 끌고 갔다. 절제 1등급인 직원이 작업을 진행할 때도 동일한 현상이 나타났다.','직원을 흡수한 피의 욕조의 표면 위로 하얀 손이 나타났다. 손이 증가할수록 피의 욕조가 생산하는 PE-BOX가 증가하는 양상을 보였다.','<명령 시 주의 요망> 피의 욕조의 손이 3개가 되었을 때에는 작업을 진행하는 직원의 생명을 보장할 수 없다. 해당 상태에서는 어떠한 조건에도 상관없이 피의 욕조가 직원을 흡수한다.'],
+ wn:'손목긋개',an:'손목긋개',w:{g:'TETH',t:1,r:0,dm:[2,3],c:25,lim:2,sdt:'매우 빠름'},a:{g:'TETH',rs:[1.2,.7,.8,2],c:25,lim:2},
+ gf:{n:'손목긋개',sl:5,ch:8,rate:2,spd:2}});
+Object.assign(AB[17],{n:'뽀대',code:'D-02-107',desc:'아니 그 천사가 지금 우리 동료를 씹어 먹고 있는데요..',g:'TETH',m:12,c:2,t:0,d:0,dm:[2,3],rb:[10,7],sp:'ppodae',hp:230,rs:[1.2,.8,1,2],
+ rt:[[60,60,60,60,60],[40,40,30,30,30],[40,40,40,40,40],[40,40,30,30,30]],b:[60,40,40,40],mn:3,uc:[12,4,3,16],
+ tp:['뽀대는 본능 작업을 가장 선호한다. 본능 이외의 작업을 완료하자 보통 확률로 클리포트 카운터가 감소하였다.','작업 결과가 나쁨일 경우 클리포트 카운터가 감소하였다.','뽀대는 탈출한 이후 직원을 공격하여 시체에서 ■■■■■■을 얻자 스스로 격리실로 돌아가는 모습을 보였다.'],
+ wn:'귀여워!!!',an:'귀여워!!!',w:{g:'TETH',t:0,r:0,dm:[4,6],c:24,lim:2,sdt:'보통'},a:{g:'TETH',rs:[.8,1.5,.8,2],c:20,lim:3},
+ gf:{n:'귀여워!!!',sl:0,ch:5,mhp:4,rate:-2,spd:-2}});
+Object.assign(AB[10],{n:'발광 팔찌',code:'O-09-95',desc:'팔찌는 이 욕심 많은 자를 용서하지 않으니 팔찌는 반드시 간절한 자들에게만 착용되어야만 한다.',g:'TETH',m:0,c:null,t:1,d:0,sp:'brace',chn:1,ck:'hb',cd:[['r',0],['r',4],['r',8],['r',12]],noeq:1,mn:4,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['은은한 옥색의 빛을 스스로 뿜어내는 팔찌. 외관에는 설명 불가능한 것들이 많이 발견되었다.','착용 시 상처입은 곳은 흔적도 없이 나아지는 모습을 볼 수 있다.','하지만 더 나아지는 게 없는 상태인데도 해당 팔찌를 계속 차고 다닌다면 그건 욕심이 되어버린다.','팔찌는 이 욕심 많은 자를 용서하지 않으니 팔찌는 반드시 간절한 자들에게만 착용되어야만 한다.'],
+ us:['발광 팔찌를 착용한 대상은 체력이 크게 상승한다.','발광 팔찌는 착용자의 체력이 감소할 때마다 지속적으로 체력을 회복시켜준다.','체력이 감소한 상태에서 반납을 시도할 경우 착용자는 사망한다.','장착 후 체력이 일정 시간 동안 감소하지 않을 경우 착용자는 과도한 회복의 부작용으로 사망한다.']});
+Object.assign(AB[4],{n:'살갗 예언',code:'T-09-90',desc:'다만 구원해주시옵소서. 진리가 우리를 자유롭게 하리라.',g:'TETH',m:0,c:null,t:1,d:0,sp:'skin',chn:1,ck:'hs',cd:[['n',0],['n',3],['n',6],['n',9]],noeq:1,mn:4,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['오래되어 보이는 종교 서적이 앙상한 거치대 위에 놓여 있다. 무수한 페이지는 낡은 양피지로 고정되어 있다.','신도들은 살가죽으로 책을 엮어 그 거룩함이 영원히 바래지 않기를 기도했다.','책의 겉표지를 넘기면 직원은 상상 못 할 진리를 깨우친다. 모든 진리의 말씀을 터득한 이들은 선지자로부터의 부름을 받으며 결코 거부할 수 없다.','다만 구원해주시옵소서. 진리가 우리를 자유롭게 하리라.'],
+ us:['책을 읽은 직원은 즉시 지혜가 일정량 상승한다.','직원의 지혜가 한계에 달할 때까지 책을 읽을 수 있다.','책을 읽은 횟수가 증가할수록 White 피해에 취약해진다.','책을 한 번이라도 읽은 직원은 패닉에 빠질 경우 그 자리에서 소멸한다.']});
+Object.assign(AB[14],{n:'열망하는 심장',code:'T-09-77',desc:'과한 열망은 그릇된 흥분을 초래했다.',g:'TETH',m:0,c:null,t:1,d:0,sp:'heart',chn:1,ck:'hc',cd:[['r',0],['r',4],['r',8],['r',12]],noeq:1,mn:4,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['신체에서 분리되었음에도 박동을 멈추지 않는 주인 없는 심장이다.','빌리는 동안만은 심장 박동수가 약 2배 이상 상승하여 강해진 체력과 공격력을 체감할 수 있다.','과한 열망은 그릇된 흥분을 초래했다.','누군가를 공격하지 않거나 30초 안에 심장을 돌려놓은 직원들은 그 강해진 체력을 발판 삼아 의미없는 살인만을 반복하게 되었다.'],
+ us:['열망하는 심장을 장착한 대상은 체력과 공격 속도가 상승한다.','열망하는 심장을 장착한 이후 특정 대상을 공격하지 않고 반납을 명령할 경우 착용자는 이성을 잃음과 동시에 폭력성이 급격히 증가하여 주변 대상을 공격하려는 모습을 보인다.','열망하는 심장을 장착한 직후 30초 이내에 반납을 명령할 경우에도 착용자에게 위와 동일한 현상이 나타났다.','']});
+Object.assign(AB[27],{n:'테레지아',code:'T-09-09',desc:'"이 음악 기억 나? 학생들이 졸고 있으면 교수님이 불러 주시곤 했었잖아. 생일 축하해."',g:'TETH',m:0,c:null,t:1,d:0,sp:'music',chn:1,ck:'hr',cd:[['r',0],['r',4],['r',8],['r',12]],noeq:1,mn:4,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['춤을 추는 발레리나의 조각상이 인상적인 오르골이다.','태엽을 돌리면 애틋한 멜로디가 흐른다. 언제, 누구에 의해 제작되었는지 알 수 없으나 중간에 음악 소리가 살짝씩 끊기는 걸로 봐서는 완전히 새 것 같지 않다.','오르골에 칼집 같은 것으로 서툴게 새겨진 문장이 있다. "이 음악 기억나? 학생들이 졸고 있으면 교수님이 불러 주시곤 했었잖아. 생일 축하해."','오르골 소리를 듣고 있으면 모든 것이 괜찮아지는 느낌과 함께 피로가 풀린다. 하지만 과한 감상은 직원을 현실에 안주하지 못하고 미치게 만들었다.'],
+ us:['사용 시 오르골이 작동하며 소리를 듣고 있는 대상은 지속적으로 정신력이 회복된다.','오르골 소리를 듣기 시작한 지 20 ~ 30초가 경과하면 대상은 패닉 상태에 빠진다.','','']});
+Object.assign(AB[40],{n:'행동교정',code:'O-09-96',desc:'마침내는 존재의 방식조차 잊어버릴 만큼 지혜는 그 의미가 없어져버린다.',g:'TETH',m:0,c:null,t:1,d:0,sp:'adj',chn:1,ck:'hj',cd:[['r',0],['r',4],['r',8],['r',12]],noeq:1,mn:4,
+ rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],
+ tp:['신비로운 문양이 새겨진 전파 장치.','악한 이, 오만한 이, 파렴치한 이 가리지 않고 모든 사람들이 정의로워질 수 있게끔 교정해준다.','하지만 교정기에 너무나 의지한 나머지 스스로 생각하는 힘은 멈추게 된다.','마침내는 존재의 방식조차 잊어버릴 만큼 지혜는 그 의미가 없어져버린다.'],
+ us:['행동교정을 장착한 대상은 정의와 관련된 능력치가 상승한다. 단, 동시에 지혜와 관련된 능력치가 감소한다.','장착 직후 30초 이내에 반납을 명령할 경우 착용자는 패닉에 빠지며, 이상행동을 보인 이후 사망한다.','행동교정을 장착한 상태에서 정신력이 0이 될 경우 착용자는 패닉 상태에서 그대로 사망한다.','']});
+const rq_=(T,al)=>T.wc&&al.some(u=>u!=T.wc.u)?al.filter(u=>u!=T.wc.u):al;
+const PD=AB.findIndex(a=>a.sp=='plague'),gmv=p=>(gr(p.s[0])>=2?[p.wi,p.ai].reduce((a,i)=>a+(i!=null&&AB[i]&&AB[i].mvx?AB[i].mvx:0),0):0)+(p.ge||[]).reduce((a,i)=>a+(i>=0&&gfo(p,i)?gfo(p,i).mv||0:0),0);
+AB.forEach(a=>{if(a.gf)a.gf.n=a.wn||a.an||a.gf.n});
+const DTM=AB.length;AB.push({n:'만지지마',code:'O-05-47',desc:'그렇게 눌러봤으면서 아직도 궁금한 게 남아있는 거야?',g:'ZAYIN',m:5,c:null,t:0,d:0,sp:'dtm',noeq:1,rt:[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],b:[0,0,0,0],mn:1,tp:['작업할 수 없는 개체다.']});
+const eT=(i,k)=>k=='w'?(AB[i].w&&AB[i].w.t!=null?AB[i].w.t:i==0?1:AB[i].d):0,eN=(i,k)=>(k=='w'?(AB[i].wn||AB[i].n)+' (무기)':(AB[i].an||AB[i].n)+' (방어구)'),eKN={w:'무기',a:'방어구'};
+function refEq(T){Object.keys(T.ps).forEach(u=>{const p=T.ps[u],w=(T.eq||[]).find(e=>e.u===u&&e.k=='w'),a=(T.eq||[]).find(e=>e.u===u&&e.k=='a');p.wi=w?w.id:null;p.wg=w?eqg(w.id,'w')+1:0;p.wt=w?eT(w.id,'w'):0;p.wr=w&&AB[w.id].w&&AB[w.id].w.r?1:0;p.wd=w?(()=>{const b=(AB[w.id].w&&AB[w.id].w.dm)||(w.lv?WPT[eqg(w.id,'w')+1]:null);if(!b)return null;if(!w.lv)return b;const m=1+[0,.2,.4,.7,1][w.lv];return[Math.round(b[0]*m),Math.round(b[1]*m)]})():null;p.ai=a?a.id:null;p.ag=a?eqg(a.id,'a')+1:0;p.rs=a&&AB[a.id].a&&AB[a.id].a.rs?AB[a.id].a.rs:null;if(p.wi!=null&&p.wi===p.ai&&AB[p.wi].gf&&AB[p.wi].gf.syn&&(p.ge||[]).includes(p.wi)){const b=p.wd||WPT[p.wg||0];p.wd=[Math.round(b[0]*1.15),Math.round(b[1]*1.15)]}if(p.sp>mS(p))p.sp=mS(p);if(p.hp>mH(p))p.hp=mH(p)})}
+function arrive(T,p,from,to,md){const op=d=>(T.dl||{})[d]>0,lc=p.lc!=null?p.lc:(p.dp||0),first=f=>Object.keys(T.dl).map(Number).filter(q=>op(q)&&DP[q].f===f)[0];let d=null;
+ if(from==0&&to==1)d=4;else if(from==1&&to==0)d=1;
+ else if(from==1&&to==2)d=lc==5?7:lc==6?8:(md==7||md==8)?md:null;
+ else if(from==2&&to==1)d=lc==7?5:lc==8?6:lc==9?5:4;
+ if(d==null||!op(d))d=(from==1&&to==2&&lc==4&&[7,8].some(op))?[7,8].find(op):first(to);
+ if(d!=null)p.lc=d}
+function rgInfo(T,p){const d=p.lc!=null?p.lc:(p.dp||0),dl=(T.dl||{})[d]||0,bn=dl>=5?.5:dl>=3?.3:dl>=1?.1:0,sv=Math.min(1,((T.cl||{})[d]||0)/10),cap=sv>=.8?.5:sv>=.5?.3:sv>=.3?.1:0,b=Math.min(bn,cap);return{b,sv,dl,d,amt:Math.round(10*(1+b))}}
+function regen(T,L){const D=new Set(Object.values(T.ps).filter(q=>q.al&&q.hp>0&&q.pr>0).map(q=>q.lc!=null?q.lc:(q.dp||0)));Object.values(T.ps).forEach(p=>{if(!p.al||p.hp<=0||p.iw)return;if(p.fy>0){if(p.fz)p.fz=0;else{p.hp=Math.min(mH(p),p.hp+Math.max(1,Math.round(mH(p)*.08)));p.fy--}}if(D.size&&D.has(p.lc!=null?p.lc:(p.dp||0)))p.hp=Math.min(mH(p),p.hp+Math.max(1,Math.round(mH(p)*.1)));const r=rgInfo(T,p).amt;p.hp=Math.min(mH(p),p.hp+r);if(!p.st)p.sp=Math.min(mS(p),p.sp+r)});Object.values(T.ps).forEach(q=>{if(q.pr>0){q.pr--;if(!q.pr&&q.pq){q.pq=0;if(q.st)q.st=null}}})}
+function calmApply(T,w,t,L){if(t.st=='매혹'){L.push('   '+t.n+': 말걸기로만 매혹을 풀 수 있다');return}if(t.st=='고독'){L.push('   '+t.n+': 고독은 진정으로 풀리지 않는다');return}if(t.st=='수면'){if(t.sl)L.push('   '+t.n+': 깊이 잠들어 깨울 수 없다');else{t.st=null;L.push('   '+w.n+'→'+t.n+' 흔들어 깨웠다')}return}const ty=w.wt||0;if(R(100)>=(w.wr?100:80)){L.push(`   ${w.n}→${t.n} 진정 빗나감`);return}
+ const th=Math.ceil(mS(t)/2);
+ if(ty==0){const x=pw(w,'atk');t.hp-=x;L.push(`   ${w.n}→${t.n} RED 무기: HP -${x} (진정되지 않음)`);return}
+ if(ty==1){t.st=null;t.sp=Math.max(t.sp,th);L.push(`   ${w.n}→${t.n} 진정 성공`);return}
+ let n=0,dead=0,lost=0,gain=0;const sp0=t.sp;
+ while(n++<80){const x=pw(w,'atk'),dh=ty==2?Math.ceil(x*.6):Math.ceil(mH(t)*x/80),gs=ty==2?Math.round(x*1.2):Math.round(x*1.5);t.hp-=dh;lost+=dh;t.sp+=gs;gain+=gs;if(t.hp<=0){dead=1;break}if(t.sp>=th){t.st=null;break}}
+ L.push(`   ${w.n}→${t.n} ${DT[ty]} 무기: HP -${lost}, 정신력 +${gain}${dead?' → HP가 먼저 바닥나 사망':' → 진정 성공'}`)}
+function xcmd(T,u,c){const p=T.ps[u];if(!p||!c||!(T.eq))T.eq=T.eq||[];if(!p)return;
+ if(c.t=='ext'){const i=+c.i,k=c.k;if(!T.ab.some(a=>a.id===i)||!(k=='w'||k=='a')||AB[i].noeq||(k=='w'&&AB[i].nw))return;{const q0=AB[i][k]||{};if(T.eq.filter(e=>e.id===i&&e.k===k).length>=(q0.lim||EL[eqg(i,k)]))return}if(k=='w'&&upct(T,i)<.5999)return;if(k=='a'&&upct(T,i)<.9999)return;
+  const cs=ecost(i,k);if((T.eb[i]||0)<cs)return;T.eb[i]-=cs;sxa(T,i,cs);T.eq.push({id:i,k,u:null,q:(T.qs=(T.qs||0)+1)})}
+ else if(c.t=='unl'){const i=+c.i;if(!T.ab.some(a=>a.id===i)||typeof c.k!='string'||AB[i].chn)return;T.un=T.un||{};const u=T.un[i]=T.un[i]||{n:0,m:Array(mnn(i)).fill(0),p:[0,0,0,0],e:0},k=c.k,x=+k.slice(1);let cs,dn_;
+  if(k=='n'){dn_=u.n;cs=ucost(i,0)}else if(k=='e'){dn_=u.e;cs=ucost(i,3)}else if(k[0]=='m'&&x>=0&&x<mnn(i)){dn_=u.m[x];cs=ucost(i,1)}else if(k[0]=='p'&&x>=0&&x<4){dn_=u.p[x];cs=ucost(i,2)}else return;
+  if(dn_||(T.eb[i]||0)<cs)return;T.eb[i]-=cs;sxa(T,i,cs);if(k=='n')u.n=1;else if(k=='e')u.e=1;else if(k[0]=='m')u.m[x]=1;else u.p[x]=1}
+ else if(c.t=='eq'){const e=T.eq.find(e=>e.id===+c.i&&e.k===c.k&&e.u==null);if(!e||e.u!=null||!p.al)return;if(!reqOk(p,AB[e.id][e.k]))return;T.eq.forEach(x=>{if(x.u===u&&x.k===c.k)x.u=null});e.u=u}
+ else if(c.t=='ge'){const i=+c.i;if(!(p.gi||[]).includes(i)||!AB[i]||!AB[i].gf)return;if(!p.ge||p.ge.length!=14)p.ge=Array(14).fill(-1);if(p.ge[AB[i].gf.sl]===PD&&i!==PD)return;p.ge[AB[i].gf.sl]=i}
+ else if(c.t=='gu'){}
+ else if(c.t=='un'){T.eq.forEach(x=>{if(x.u===u&&x.k===c.k)x.u=null})}
+ else if(c.t=='lsup'){const i=+c.i,a=T.ab[i];if(a&&AB[a.id].sp=='lantern'&&a.es&&T.ph=='work'&&!T.bo&&p.al){const L=['📣 '+p.n+': 제압을 명령했다'];chkBreak(T,L,i);T.log=L.concat(T.log||[]).slice(0,12)}}
+ else if(c.t=='tk'){const a=T.ab[+c.i],tg=T.ps[c.u];if(a&&AB[a.id].sp=='cherry'&&T.ph=='work'&&p.al&&!p.st&&tg&&tg.al&&tg.st=='매혹'&&p.tk!==T.r&&DP[a.dp||0].f===p.fl){p.tk=T.r;const v=Math.max(10,Math.min(85,p.s[1])),pr=Math.round(40+55*(v-10)/75),L=[];if(R(100)<pr){tg.cg=(tg.cg||0)+1;L.push('💬 '+p.n+'→'+tg.n+' 말걸기 성공 ('+tg.cg+'/2)');if(tg.cg>=2){tg.st=null;L.push('   '+tg.n+': 매혹에서 벗어났다')}}else L.push('💬 '+p.n+'→'+tg.n+' 말걸기 실패');T.log=L.concat(T.log||[]).slice(0,12)}}
+ else if(c.t=='rq'){const k=c.k=='d'?'d':'m';if(u===T.host&&T.ph!='lobby'&&!T.rq&&T.sv&&T.sv[k]){T.rq={k,n:Date.now(),by:u};T.log.unshift('🗳 '+p.n+': '+(k=='m'?'기억저장소로 복귀':'오늘 시작으로 되돌리기')+' 투표를 열었어요')}}
+ else if(c.t=='rc'){if(u===T.host)T.rq=null}
+ else if(c.t=='rs'){const k=T.dtm?'d':'m';if(u===T.host&&T.ph=='over'&&T.sv&&T.sv[k])swapT(T,memBack(T,k))}
+ else if(c.t=='dtm'){if(!T.dtm&&T.ph!='lobby'&&T.ph!='over'&&T.ph!='win')dtmGo(T,p)}
+ refEq(T)}
+function pw(p,a){return a=='atk'?rr(p.wd||WPT[p.wg||0])+Math.floor(p.s[0]/5*BM[p.wg||0]):rr(WPT[p.ag||0])+Math.floor(p.s[1]/5*BM[p.ag||0])}
+function rollDice(T){const b=T.bo,E=b.e||AB[T.ab[b.i].id],ag=b.e?b.ag:GI.indexOf(E.eg||E.g)+1,dc=[],ps=T.ps;
+ if(!Object.keys(ps).some(u=>ps[u].al&&!ps[u].iw)){T.wc=null;Object.values(ps).forEach(p=>p.iw=0)}
+ const hl=Object.keys(ps).some(u=>ps[u].al&&!ps[u].st&&!ps[u].iw);b.ko=hl?0:1;Object.keys(ps).forEach(u=>{const p=ps[u];if(!p.al||p.iw||b.ko)return;const sk=p.st;if(sk&&(p.st=='패닉'||p.st=='수면'||p.st=='고독'||p.st=='매혹'))return;const g=gr(p.s[3])-1;for(let n=0;n<SC[g];n++)dc.push({k:dc.length,s:sk?'r':'p',u,n,sp:rr(SR[g])+gsp(p)})});
+ const ec=b.stg>0?0:(E.sp10?10:[3,4,5,6,7][ag-1]);
+ for(let n=0;n<ec;n++)dc.push({k:dc.length,s:'e',n,sp:rr(ER[ag-1])});
+ dc.forEach(d=>{if(d.s=='p')return;let cand=Object.keys(ps).filter(u=>ps[u].al&&!ps[u].iw&&(d.s=='e'||u!=d.u));if(!cand.length)return;if(E.sp=='bird'&&d.s=='e'){const pc=cand.filter(u=>['패닉','도주','분노'].includes(ps[u].st));if(pc.length&&R(100)<70)cand=pc}const u=cand[R(cand.length)],mine=dc.filter(x=>x.s=='p'&&x.u==u);d.tg={u,k:mine.length?mine[R(mine.length)].k:-1}});
+ b.dc=dc}
+function fightRun(T){const b=T.bo,a=b.e?null:T.ab[b.i],E=b.e||AB[a.id],ps=T.ps,L=[],dp=b.e?b.e.dp:(a.dp||0),ag=b.e?b.ag:GI.indexOf(E.eg||E.g)+1,dc=b.dc||[],EN=b.e?E.n:(E.nf&&hasN(T,a.id)?E.nf:dn(T,a.id));
+ const al0=Object.values(ps).filter(p=>p.al).length;const rs=(E.rs||[1,1,1,1])[0],ss=(E.ss||[1,1,1,1])[0];
+ const ch=u=>(A[u]&&A[u].fr===T.fr&&A[u].ds)||{};
+ const ac=d=>d.s=='p'?(ch(d.u)[d.k]||{a:'atk',t:-1}):{a:'atk',t:-1};
+ const nm=d=>d.s=='e'?`적#${d.n+1}`:`${ps[d.u].n}#${d.n+1}`;
+ const roll=d=>d.s=='e'?rr(ENR[ag-1]):pw(ps[d.u],ac(d).a);
+ const ty=d=>d.s=='e'?E.d:d.s=='r'?(ps[d.u].st=='도주'?1:0):(ps[d.u].wt||0);
+ const hurt=(u,dm,t)=>{const p=ps[u];if(!p||!p.al)return;const pn=p.st=='패닉'&&!b.ko;if(b.ko)dm*=2;else if(pn)dm=Math.ceil(dm*1.5);dm=Math.ceil(dm*((p.rs||[1,1,1,1])[t]||1));hit(T,p,t,dm,1);L.push(`   → ${p.n} ${DT[t]} ${dm}${b.ko?' (행동불가 ×2)':pn?' (패닉 ×1.5)':''}`)};
+ const hitE=(dm,tp,at)=>{if(b.hp<=0)return;if(E.sp=='bird'&&at&&at.s=='p'){const q=ps[at.u];if(q&&q.al&&q.hp>0){q.hp=0;L.push(`   ☠ ${q.n}: 징벌 새에게 공격을 시도하자 중심부가 갈라지며 즉사했다 (피해 없음)`)}return}const rs=(E.rs||[1,1,1,1])[tp||0],ss=(E.ss||[1,1,1,1])[tp||0],tm=TM[tp||0],h=Math.ceil(dm*(b.stg>0?1.5:1)*rs*tm[0]);b.hp-=h;b.sg=Math.max(0,b.sg-Math.ceil(dm*ss*tm[1]));L.push(`   → ${EN} ${h} 피해 (흐트러짐 ${b.sg}/${b.smx})`);
+  if(b.sg<=0&&!(b.stg>0)){b.stg=2;L.push(`💫 ${EN} 흐트러짐! 남은 공격이 취소돼요`);dc.forEach(x=>{if(x.s=='e')x.used=1})}};
+ const calm=(d,c)=>{const t=ps[c.t],w=ps[d.u];if(t&&t.al&&t.st&&w)calmApply(T,w,t,L)};
+ const wfx=d=>{if(d.s!='p')return;const p=ps[d.u],w=p.wi!=null&&AB[p.wi].w;if(w&&w.fx=='scream'&&gr(p.s[0])<3&&gr(p.s[1])<3&&R(100)<50){p.sp-=5;L.push(`   ${p.n}: 무기 효과로 정신력 -5`)}if(w&&w.fx=='pen'&&gr(p.s[3])>=2&&R(100)<5){p.sp=Math.min(mS(p),p.sp+10);L.push(`   ${p.n}: 무기 효과로 정신력 +10`)}if(w&&w.fx=='cosmo'&&gr(p.s[1])<=4&&!(p.cb>0)&&R(100)<10){p.cb=3;p.sp=Math.min(mS(p),p.sp+Math.round(mS(p)*.286));L.push(`   🎵 ${p.n}: 무기 효과로 최대 정신력 40% 상승 (30초)`)}};
+ const strike=(f,t,pwr,red)=>{wfx(f);const dm=Math.max(1,pwr-red);if(t.s=='e')hitE(dm,ty(f),f);else if(t.s=='r')L.push('   → 공격 차단');else hurt(t.u,dm,ty(f))};
+ const mark=d=>{if(T.ht&&d&&d.s!='e'&&d.u&&T.ht.u==d.u&&ac(d).a=='atk')T.ht.at=1};
+ const clash=(x,y)=>{mark(x);mark(y);x.used=1;y.used=1;const ax=ac(x),ay=ac(y);let px=0,py=0,ok=0;
+  for(let n=0;n<10;n++){px=roll(x);py=roll(y);if(px!=py){ok=1;break}}
+  L.push(`⚔ 합: ${nm(x)}(${AN[ax.a]} ${px}) vs ${nm(y)}(${AN[ay.a]} ${py})`);
+  if(!ok){L.push('   무승부: 둘 다 사라져요');return}
+  const w=px>py?x:y,l=px>py?y:x,pwv=Math.max(px,py),pl=Math.min(px,py),aw=ac(w),al=ac(l);
+  if(aw.a=='atk')strike(w,l,pwv,al.a=='def'?pl:0);
+  else if(aw.a=='calm'){L.push('   진정이 합에서 이겼어요');calm(w,aw)}
+  else L.push('   방어 성공: 공격이 막혔어요');
+  if(al.a=='atk'&&l.s=='e'&&E.ind){L.push('   파괴불가: 약해진 공격이 이어져요');strike(l,w,Math.floor(pl/2),0)}};
+ const ord=dc.map((d,i)=>i).sort((x,y)=>dc[y].sp-dc[x].sp||R(3)-1);
+ for(const i of ord){const d=dc[i];if(d.used)continue;
+  if(d.u&&!ps[d.u].al){d.used=1;continue}
+  if(d.s=='p'){const c=ac(d);
+   if(c.a=='def')continue;
+   if(c.a=='calm'){d.used=1;L.push(`${nm(d)} 진정`);calm(d,c);continue}
+   const x=c.t>=0?dc[c.t]:null;
+   if(x&&x.s=='e'&&!x.used){clash(d,x);continue}
+   mark(d);d.used=1;const dm=roll(d);L.push(`${nm(d)} 공격 ${dm} (본체)`);wfx(d);hitE(dm,ty(d),d);continue}
+  const tg=d.tg;
+  if(!tg||!ps[tg.u]||!ps[tg.u].al){d.used=1;continue}
+  const M=tg.k>=0?dc[tg.k]:null;
+  if(M&&M.s=='p'&&!M.used&&ps[M.u].al){clash(d,M);continue}
+  mark(d);d.used=1;const dm=roll(d);L.push(`${nm(d)} 일방 공격 ${dm} → ${ps[tg.u].n}`);hurt(tg.u,dm,ty(d))}
+ if(b.hp>0&&E.sp!='bird'){const lost=E.sp=='ppodae'?Math.min(T.cl[dp],1):Math.min(T.cl[dp],1+R(2)+b.t);if(E.sp=='ppodae'&&lost>0)b.kd=1;T.cl[dp]-=lost;dth(T,lost,L);L.push(`${DN[dp]} 사무직 ${lost}명 손실`)}
+ 
+ voidCry(T,E,b,L);ldTick(T,L);chTick(T,L);post(T,L);regen(T,L);emChk(T,L);brTick(T,L);if(b.ko){Object.values(ps).forEach(p=>{if(p.al&&p.st!='수면'&&p.st!='고독'&&p.st!='매혹'){p.st=null;p.sp=Math.max(p.sp,Math.ceil(mS(p)/2))}});L.push('🩹 직원들이 정신을 차렸어요 (정신력 절반 회복)')}b.t++;T.fr++;if(b.stg>0){b.stg--;if(!b.stg)b.sg=b.smx}
+ if(b.hp<=0){L.push(`✅ ${EN} 제압 성공`);if(!b.ord)T.ab.forEach(a2=>{if(AB[a2.id].sp=='pink'&&a2.c!=null)a2.c=Math.min(AB[a2.id].c,a2.c+1)});if(b.ord){Object.values(ps).forEach(p=>p.lp+=b.ord);L.push(`롭포인트 +${b.ord}`)}T.bo=null;T.ph='work';T.en+=2*ag;if(!chkBreak(T,L)&&!startOrd(T))aft(T)}
+ else if(!Object.values(ps).some(p=>p.al))T.ph='over';
+ else if(!b.ord&&!b.e&&E.sp=='scorch'&&b.t>=2){L.push('💥 불타버린 소녀가 폭발했다!');Object.values(ps).forEach(p=>{if(p.al){hit(T,p,0,Math.max(1,Math.round(mH(p)*.5)));L.push('   '+p.n+': 화상')}});{const n3=Math.min(3,T.cl[dp]||0);if(n3>0){T.cl[dp]-=n3;dth(T,n3,L);L.push(DN[dp]+' 사무직 '+n3+'명 손실')}}post(T,L);if(!Object.values(ps).some(p=>p.al))T.ph='over';else{T.bo=null;T.ph='work';if(!chkBreak(T,L)&&!startOrd(T))aft(T)}}
+ else if(!b.ord&&!b.e&&E.sp=='ppodae'&&(b.kd||Object.values(ps).filter(p=>p.al).length<al0||b.t>=8)){L.push(b.t>=8&&!b.kd?'🐶 뽀대가 스스로 격리실로 돌아갔다':'🐶 뽀대가 시체에서 ■■■■■■을 얻고 스스로 격리실로 돌아갔다');T.bo=null;T.ph='work';if(!chkBreak(T,L)&&!startOrd(T))aft(T)}
+ else if(!b.ord&&!b.e&&E.sp=='bird'&&b.t>=6){L.push('🕊 징벌 새가 스스로 격리실로 돌아갔다');T.bo=null;T.ph='work';if(!chkBreak(T,L)&&!startOrd(T))aft(T)}
+ else if(!b.ord&&!b.e&&E.sp=='void'&&b.t>=6){L.push('🌙 공허한 꿈이 스스로 격리실로 돌아갔다');Object.values(ps).forEach(p=>{if(p.al&&p.st=='수면'&&!p.sl)p.st=null});T.bo=null;T.ph='work';if(!chkBreak(T,L)&&!startOrd(T))aft(T)}
+ else if(b.ord&&b.t>=b.lim){L.push(`❌ ${EN} 실패: ${DN[dp]} 사무직 대량 손실, 직원 피해`);{const c0=T.cl[dp];T.cl[dp]=Math.floor(c0*.3);dth(T,c0-T.cl[dp],L)}Object.values(ps).forEach(p=>{if(p.al)p.hp-=Math.ceil(mH(p)*.3)});post(T,L);T.bo=null;if(!Object.values(ps).some(p=>p.al))T.ph='over';else{T.ph='work';if(!chkBreak(T,L)&&!startOrd(T))aft(T)}}
+ else rollDice(T);
+ emChk(T,L);T.log=L.concat(T.log||[]).slice(0,40)}
+function gw(d,g){const b=d<=4?[50,50,0,0,0]:d<=9?[10,40,40,10,0]:d<=19?[8,20,32,35,5]:d<=34?[5,10,20,45,20]:[2,5,5,48,40];return d<10&&g=='ALEPH'?0:b[GI.indexOf(g)]}
+function wpick(Q,d){Q=Q.slice();const c=[];while(c.length<3&&Q.length){let w=Q.map(i=>gw(d,AB[i].pg||AB[i].g)+(d<10&&(AB[i].pg||AB[i].g)=='ALEPH'?0:.5)),t=w.reduce((a,b)=>a+b,0);if(!t){w=Q.map(()=>1);t=Q.length}let r=Math.random()*t,k=0;while(k<Q.length-1&&(r-=w[k])>=0)k++;c.push({id:Q.splice(k,1)[0]})}return c}
+function nxt(T){T.day++;if(T.day>50)T.ph='win';else init(T)}
+function elig(T){for(const g of GP){const o=g.filter(d=>T.dl[d]<5);if(o.length)return o}return[]}
+function snap(T){T.qs=T.qs||0;(T.eq||[]).forEach(e=>{if(!e.q)e.q=++T.qs});const o=JSON.parse(JSON.stringify(T));delete o.sv;delete o.rq;return o}
+function swapT(T,N){if(!N)return;Object.keys(T).forEach(k=>delete T[k]);Object.assign(T,N)}
+const sxa=(T,i,c)=>{T.sx=T.sx||{};T.sx[i]=(T.sx[i]||0)+c},lbl=m=>m.day+'일차 '+(m.ph=='shop'?'정산 직후':'시작');
+function memBack(T,k){const s=T.sv&&T.sv[k];if(!s)return null;const N=JSON.parse(JSON.stringify(s)),c=T,now=Math.max(Date.now(),...Object.keys(A).map(u=>Math.max(A[u].n||0,A[u].xn||0)))+1;
+ N.sv=c.sv;N.host=c.host;N.rv=(c.rv||0)+1;const nr=(c.r||0)+1;N.r0=(N.r0||0)+nr-(N.r||0);N.r=nr;N.fr=(c.fr||0)+1;N.vk=(c.vk||0)+1;N.rq=null;N.dtm=0;
+ Object.values(N.ps).forEach(p=>{p.ln=now;p.lx=now});
+ if(k=='m'){N.un=c.un||{};N.sx=c.sx||{};N.eq=(c.eq||[]).map(e=>({id:e.id,k:e.k,u:null}));const b=s.eb||{},s0=s.sx||{};Object.keys(b).forEach(i=>{N.eb[i]=Math.max(0,b[i]-((c.sx||{})[i]||0)+(s0[i]||0))})}
+ if(k=='d'&&c.dtm&&c.un&&c.un[DTM]){N.un=N.un||{};N.un[DTM]=c.un[DTM]}
+ N.dz=c.dz||[];N.qs=Math.max(c.qs||0,N.qs||0);if(k=='d')N.eq=(N.eq||[]).filter(e=>!N.dz.includes(e.q));
+ N.log=[(k=='m'?'🧠 기억저장소로 복귀했어요 ('+lbl(s)+')':'⏪ 일일 저장으로 복귀했어요 ('+lbl(s)+')')].concat((s.log||[]).slice(0,4));refEq(N);return N}
+function dtmGo(T,p){T.dtm=1;T.wc=null;T.hy=null;T.un=T.un||{};T.un[DTM]={n:1,m:[1],p:[1,1,1,1],e:1};T.bo=null;T.rq=null;(T.eq||[]).forEach(e=>e.u=null);Object.values(T.ps).forEach(q=>{q.al=0;q.bd=0;q.bp=0;q.gi=[];q.ge=[];q.st=null;q.hp=0});T.ph='over';T.log.unshift('💀 '+p.n+'가 만지지마를 건드렸어요… 모든 환상체가 탈출하고 모든 직원이 사망했어요')}
+function dayEnd(T){if(T.day%5==0&&T.ph=='shop'){T.sv=T.sv||{};T.sv.m=snap(T);T.log.unshift('🧠 기억저장소에 저장했어요 ('+T.day+'일차 정산 직후)')}const o=elig(T);if(!o.length)return nxt(T);if(o.length==1)return pickDept(T,o[0]);vote(T,'dept',o.map(d=>({d,t:`${DN[d]} (${['상층','중층','하층'][DP[d].f]}) ${T.dl[d]}→${T.dl[d]+1}단계`})))}
+function pickDept(T,d){T.dl[d]++;T.nd=d;T.log.unshift(`🏢 ${DN[d]} ${T.dl[d]}단계`);if(T.dl[d]<=4){T.pk=DP[d].x?2:1;startPick(T)}else nxt(T)}
+function startPick(T){const d=T.nd,tot=DP[d].x?8:4,tl=DP[d].x?2:1,have=T.ab.filter(a=>(a.dp||0)==d),tn=tl-have.filter(a=>AB[a.id].t).length,left=tot-have.length;
+ let Q=AB.map((_,i)=>i).filter(i=>!T.ab.some(a=>a.id==i));Q=tn>=left?Q.filter(i=>AB[i].t):tn<=0?Q.filter(i=>!AB[i].t):Q;
+ vote(T,'pick',wpick(Q,T.day))}
+function init(T){T.en=0;T.wk=0;T.lv=1;T.ti=0;T.r=(T.r||0)+1;T.r0=T.r;T.q=25+8*T.day;T.ab.forEach(a=>{a.t=null;a.bh=0;if(AB[a.id].sp=='cherry'&&a.cm==1){a.cmt=0;a.cc=[];a.cm=a.ab?2:0;if(!a.ab)a.c=AB[a.id].c}});T.cl={};for(let i=0;i<10;i++)T.cl[i]=10;T.em=0;T.eh=0;T.ox=0;hyDay(T);T.hl=0;T.dd=0;T.kc=0;Object.values(T.ps).forEach(p=>{p.dz=p.al?0:1;p.xd=0;p.mc=0});T.bo=null;T.on=0;T.oq=0;T.ot=0;const mt=T.day>=31?4:T.day>=21?3:T.day>=11?2:1;T.op=[4,8,12,15].slice(0,mt).map(x=>Math.max(2,Math.min(15,x+R(5)-2))).sort((a,b)=>a-b);
+ Object.keys(T.ps).forEach(u=>{const p=T.ps[u];if(p.al){p.hp=mH(p);p.sp=mS(p);p.st=null;p.fy=0;p.fz=0;p.pr=0;p.pq=0;p.sl=0;p.ld=0;const pl=A[u]&&A[u].pl;if(pl!=null&&T.dl[pl]>0)p.dp=pl;if(!p.dp||!T.dl[p.dp])p.dp=0;p.fl=DP[p.dp].f;p.lc=p.dp;p.mv=null}});T.ph='work';T.sv=T.sv||{};T.sv.d=snap(T)}
+function vote(T,kind,ch){T.vk=(T.vk||0)+1;T.vt={kind,ch};T.ph='vote'}
+function buy(p,b){if(b==4){if(!p.al&&p.lp>=1){p.lp-=1;p.s=[10,10,10,10];p.sg=0;p.sk=0;p.al=1;p.bd=0;p.tr=R(3);p.hp=mH(p);p.sp=mS(p);p.st=null}}
+ else{const g=gr(p.s[b]);if(g<5&&p.lp>=cost(b,g)){p.lp-=cost(b,g);p.s[b]=GR[g]}}}
+function roundRun(T,al){const L=[];al.sort((a,b)=>T.ps[b].s[3]-T.ps[a].s[3]);const sw=new Set(al.map(u=>{const x=A[u]&&A[u].r===T.r?A[u]:{};return x.w?x.w[0]:-1}));const lw=al.some(u=>{const x=A[u]&&A[u].r===T.r?A[u]:{};return x.w&&T.ab[x.w[0]]&&AB[T.ab[x.w[0]].id].sp=='lady'});
+ for(const u of al){const p=T.ps[u],x=A[u]&&A[u].r===T.r?A[u]:{};
+  if(T.hy&&T.hy.u==u){hyRound(T,p,x,L);continue}
+  if(T.wc&&T.wc.u==u){wcTick(T,p,L);continue}
+  if(x.wu!=null&&!x.w&&x.mv==null&&!x.cu){wcStart(T,p,x,L);continue}
+  if(x.fu!=null&&!x.w&&x.mv==null&&!x.cu){faithUse(T,p,u,x,L);continue}
+  if(x.mu!=null&&!x.w&&x.mv==null&&!x.cu){mirrorUse(T,p,u,x,L);continue}
+  if(x.su!=null&&!x.w&&x.mv==null&&!x.cu){skinUse(T,p,u,x,L);continue}
+  if(x.bu!=null&&!x.w&&x.mv==null&&!x.cu){braceUse(T,p,u,x,L);continue}
+  if(x.hv!=null&&!x.w&&x.mv==null&&!x.cu){heartUse(T,p,u,x,L);continue}
+  if(x.aj!=null&&!x.w&&x.mv==null&&!x.cu){adjUse(T,p,u,x,L);continue}
+  if(x.tu!=null&&!x.w&&x.mv==null&&!x.cu){musicUse(T,p,u,x,L);continue}
+  if(x.hu!=null&&!x.w&&x.mv==null&&!x.cu){hyStart(T,p,x,L);continue}
+  if(x.cu){p.mv=null;const t=T.ps[x.cu];if(t&&t.al&&t.st)calmApply(T,p,t,L);else L.push(`${p.n}: 진정할 대상이 없어요`);continue}
+  if(x.w)p.mv=null;else if(x.mv!=null)p.mv=x.mv<0?null:x.mv;
+  if(!x.w){if(p.mv!=null&&p.mv!=p.fl){{const pf=p.fl,ff=Math.abs(p.mv-p.fl)==2&&gmv(p)>5;if(ff){arrive(T,p,pf,1,x.md);arrive(T,p,1,p.mv,x.md);p.fl=p.mv}else{p.fl+=Math.sign(p.mv-p.fl);arrive(T,p,pf,p.fl,x.md)}}L.push(`${p.n} 이동 → ${FN[p.fl]}`);if(p.fl==p.mv)p.mv=null}continue}
+  const [ai,w]=x.w,a=T.ab[ai];if(!a)continue;const d=AB[a.id];if(DP[a.dp||0].f!==p.fl){L.push(`${p.n}: ${FN[DP[a.dp||0].f]} 환상체는 작업 불가`);continue}
+  if((a.dp||0)==9&&![7,8,9].includes(p.lc!=null?p.lc:(p.dp||0))){L.push(`${p.n}: 설계팀은 추출팀·기록팀에서만 갈 수 있어요`);continue}
+  if(p.fy>0&&d.sp!='fairy'){p.hp=0;p.fy=0;L.push('🧚 '+p.n+': 요정들이 곁에 있는 채로 다른 작업을 하러 가서 요정들에게 먹혔다');continue}
+  if(d.sp=='pink'&&w==2){p.lc=a.dp||0;pinkGuard(T,p,a,L);continue}
+  if(d.sp=='spider'){p.lc=a.dp||0;if(gr(p.s[1])==1){p.hp=0;T.kc=(T.kc||0)+1;L.push('🕸 '+p.n+': 새끼 거미를 밟아 고치가 되었다');continue}if(w==1){const dp=a.dp||0;if((T.cl[dp]||0)>0){T.cl[dp]--;dth(T,1,L);T.kc=(T.kc||0)+1;L.push('🕸 '+DN[dp]+' 사무직 1명이 고치가 되었다')}}}
+  if(d.sp=='wall'&&w==2&&a.c!=null){p.lc=a.dp||0;a.c--;L.push('   🧱 애착 작업 시작 → 카운터 감소');if(a.c<=0)wallPulse(T,a,L)}
+  if(d.sp=='crumb'&&w==2&&(p.ge||[]).includes(a.id)){p.lc=a.dp||0;p.gi=(p.gi||[]).filter(x=>x!==a.id);p.ge[AB[a.id].gf.sl]=-1;p.cr=0;p.hp=0;L.push('🗡 '+p.n+': 격리실에 진입하자 갑옷이 사라짐과 동시에 목이 절단되었다');continue}
+  if(d.sp=='bath'&&((a.bh||0)>=3||gr(p.s[2])==1)){p.lc=a.dp||0;p.hp=0;a.bh=Math.min(3,(a.bh||0)+1);L.push('🛁 '+p.n+': 욕조에서 손이 뻗어 나와 작업을 시작하기도 전에 욕조 속으로 끌려갔다 (손 '+a.bh+'개)');continue}
+  p.lc=a.dp||0;if(d.sp=='bald'&&!p.bd){p.bd=1;L.push(`💇 ${p.n}: 대머리가 되었어요!`)}const sx=d.sp=='shy'?SHYT[(a.ex==null?3:a.ex)-1]:null;const rate=Math.max(0,Math.min(95,rateOf(p,d,w)+(sx?sx.r:0)));let ok=0;
+  let dm=0,cut='';const tt=[8,15,25,38,55][GI.indexOf(d.g)]/d.m,hr=d.dm||[Math.max(1,Math.round(.7*tt)),Math.max(1,Math.round(1.3*tt))];for(let i=0;i<d.m;i++){const sk=R(100)<rate;if(sk)ok++;const h0=Math.max(1,hr[0]+R(hr[1]-hr[0]+1)),h=sx?Math.max(1,Math.round(h0*sx.d)):h0;dm+=h;hit(T,p,d.d,h);if(sk&&sx){if(sx.h)p.hp=Math.min(mH(p),p.hp+sx.h);if(sx.s)p.sp=Math.min(mS(p),p.sp+sx.s)}if(p.hp<=0){cut=' ☠ 작업 중 사망';break}if(p.sp<=0){cut=' ⚠ 정신력 고갈로 작업 중단';break}}
+  const res=d.rb?(ok>=d.rb[0]?'좋음':ok>=d.rb[1]?'보통':'나쁨'):(ok>=d.m*.7?'좋음':ok>=d.m*.4?'보통':'나쁨');
+  T.en+=ok;if(d.sp=='bath'&&a.bh)T.en+=Math.round(ok*.2*a.bh);T.eb[a.id]=(T.eb[a.id]||0)+ok;T.wk++;a.t=null;if(d.sp=='can'&&res!='나쁨'&&p.hp>0){const a1=Math.round(mH(p)*.15),a2=Math.round(mS(p)*.15);if(w!=1)p.hp=Math.min(mH(p),p.hp+a1);if(w!=0)p.sp=Math.min(mS(p),p.sp+a2);L.push(`🥫 ${p.n}: 자판기에서 ${w==0?'붉은 캔 (HP +'+a1+')':w==1?'푸른 캔 (정신력 +'+a2+')':'보라색 캔 (HP +'+a1+', 정신력 +'+a2+')'}`)}if((res=='좋음'||(d.sp=='spider'&&res=='보통'))&&d.gf&&p.hp>0&&R(100)<d.gf.ch&&!(p.gi||[]).includes(a.id)){p.gi=(p.gi||[]).concat([a.id]);gEq(p,a.id);L.push(`🎁 ${p.n}: 에고 기프트 획득 — ${d.gf.n} (자동 장착)`)}
+  const ag2=GI.indexOf(d.g)+1;if(res=='나쁨'&&a.c!=null&&d.sp!='mhz'&&d.sp!='wall'&&d.sp!='scorch'&&d.sp!='cosmos'&&d.sp!='bird')a.c--;if(d.sp=='cosmos'&&a.c!=null){if((res=='나쁨'&&R(100)<80)||(res=='보통'&&R(100)<40)){a.c=Math.max(0,a.c-1);L.push('   🎵 '+dn(T,a.id)+': 카운터 감소')}if(p.sp<=0&&p.hp>0){a.c=Math.max(0,a.c-1);L.push('   🎵 '+p.n+' 패닉 → 카운터 감소')}}if(d.sp=='mhz'&&a.c!=null){if((res=='나쁨'&&R(100)<80)||(res=='보통'&&R(100)<50)){a.c=Math.max(0,a.c-1);L.push('   📻 '+dn(T,a.id)+': 카운터 감소')}if(p.sp<=0&&p.hp>0){a.c=Math.max(0,a.c-1);L.push('   📻 '+p.n+' 패닉 → 카운터 감소')}}
+  const E=ag2>=eg(p)?1.5:.6,F=s=>30/(s+20),g1=.4*(.4+ok/d.m)*E*F(p.s[w]),g2=dm?.032*dm*E*F(p.s[d.d]):0;p.g=p.g||[0,0,0,0];p.g[w]+=g1;p.g[d.d]+=g2;if(a.id==0){if(res=='좋음')p.sp=Math.min(mS(p),p.sp+10);if(ok==d.m)Object.values(T.ps).forEach(q=>{if(q.al&&(q.lc!=null?q.lc:(q.dp||0))===(a.dp||0))q.sp=mS(q)})}
+  if(d.sp=='pink'&&w==3&&!cut&&a.c!=null)a.c--;
+  if(d.sp=='lantern'&&!cut&&a.c!=null){const tm=wtime(p);L.push('   ⏱ 작업 시간 '+tm+'초');if(tm<=40){a.c=Math.max(0,a.c-1);L.push('   🏮 짧은 작업 → 카운터 감소')}}
+  if(d.sp=='plague'&&res=='좋음'){a.c--;bapt(T,p,L)}
+  if(d.sp=='void'&&p.hp>0&&!p.st&&gr(p.s[2])<2){p.st='수면';p.sl=1;L.push('💤 '+p.n+': 격리실에서 잠들었다 (정산 때 사망)')}
+  if(d.sp=='cherry'&&a.c!=null){if(res=='좋음'){a.c=Math.max(0,a.c-1);L.push('   🌸 좋음 → 카운터 감소')}if(p.sp<=0&&p.hp>0){a.c=Math.max(0,a.c-1);L.push('   🌸 '+p.n+' 패닉 → 카운터 감소')}if(a.cm==2){a.c=d.c;a.cm=0;Object.values(T.ps).forEach(q=>{if(q.al){q.hp=mH(q);q.sp=mS(q)}});L.push('🌸 카운터 복구 — 모든 직원의 체력과 정신력이 회복되었다')}}
+  if(d.sp=='bath'&&!cut&&p.hp>0&&gr(p.s[0])==1){p.hp=0;a.bh=Math.min(3,(a.bh||0)+1);L.push('🛁 '+p.n+': 작업이 끝나자 손이 뻗어 나와 욕조 속으로 끌려갔다 (손 '+a.bh+'개)')}
+  if(d.sp=='crumb'&&!cut&&p.hp>0){if(w==3){p.cr=(p.cr||0)+1;if(!(p.gi||[]).includes(a.id))p.gi=(p.gi||[]).concat([a.id]);gEq(p,a.id);L.push('🎁 '+p.n+': 에고 기프트 — '+gfo(p,a.id).n+(p.cr>1?' (변화 '+p.cr+'회)':' 획득 (자동 장착)'));if(p.hp>mH(p))p.hp=mH(p)}if(gr(p.s[0])==1){p.hp=0;L.push('🗡 '+p.n+': 작업 종료 후 목이 절단된 채 발견되었다')}}
+  if(d.sp=='ppodae'&&w!=0&&!cut&&p.hp>0&&a.c!=null&&R(100)<40){a.c=Math.max(0,a.c-1);L.push('   🐶 본능 이외의 작업 완료 → 카운터 감소')}
+  if(d.sp=='scorch'&&a.c!=null&&((res=='나쁨'&&R(100)<80)||(res=='보통'&&R(100)<50))){a.c=Math.max(0,a.c-1);L.push('   🔥 카운터 감소')}
+  if(d.sp=='wall'&&a.c!=null){if((res=='나쁨'&&R(100)<80)||(res=='보통'&&R(100)<50)){a.c=Math.max(0,a.c-1);L.push('   🧱 카운터 감소')}if(!cut&&p.hp>0&&!p.st&&gr(p.s[2])<2&&p.tr==2&&R(100)<50){p.st='분노';p.fp=1;L.push('😱 '+p.n+': 그녀의 말을 듣고 뒤를 돌아보았다 — 분노 상태')}}
+  if(d.sp=='beast'){a.hl=a.hl==null?3:a.hl;if(w==3)a.hl--;else a.hl=Math.min(6,a.hl+1);if(a.hl<=0){a.hl=3;if(p.hp>0)p.hp=0;L.push('🥀 '+dn(T,a.id)+'가 힘없는 소리를 내며 쓰러졌다 — '+p.n+'에게서 이상 현상이 발생했다. 새로운 미녀와 야수가 태어났다')}}
+  if(d.sp=='fairy'&&res!='나쁨'&&p.hp>0){p.fy=2;p.fz=1;L.push('🧚 '+p.n+': 작은 요정들이 주위에 생겼다')}
+  if(res=='좋음'&&a.c!=null&&!d.ni)a.c=Math.min(d.c,a.c+1);
+  if(d.sp!='lady'&&!lw&&!cut)T.ab.forEach(l=>{if(AB[l.id].sp=='lady'&&l.c!=null&&l.c>0){l.c--;L.push('   🕳 '+dn(T,l.id)+': 다른 환상체 작업 → 카운터 감소')}});
+  if(d.sp!='bird'&&!cut)T.ab.forEach(l=>{if(AB[l.id].sp=='bird'&&l.c!=null&&l.c>0&&R(100)<30){l.c--;L.push('   🕊 '+dn(T,l.id)+': 다른 환상체 격리실 입장 → 카운터 감소')}});
+  if(d.sp=='lady'&&a.ln&&p.hp>0){a.ln=0;a.c=d.c;p.st='고독';p.ld=2;L.push('🌑 '+p.n+': 고독이 들러붙었다 (2턴)')}
+  if(d.sp=='mhz'&&res=='좋음'&&ok==d.m&&!cut&&a.c!=null){a.c=Math.min(d.c,a.c+1);L.push('   📻 전부 성공 → 카운터 추가 상승')}
+  L.push(`${p.n}: ${dn(T,a.id)} ${W[w]} → ${hasN(T,a.id)?res:'???'} (${ok}/${d.m}) 성장 적립 ${SN[w]}+${g1.toFixed(1)}${dm?` · ${DT[d.d]}피해 ${dm}→${SN[d.d]}+${g2.toFixed(1)}`:''}${cut}`);
+  if(T.wk==NW(T.lv)&&T.lv<15){T.lv++;while(T.on<T.op.length&&T.lv>=T.op[T.on]){T.on++;T.oq=(T.oq||0)+1;L.push('🌅 시련이 다가옵니다!')}const k=Math.ceil(T.lv/2),pool=T.ab.filter(x=>x.t==null&&!AB[x.id].noover);
+   for(let i=0;i<k&&pool.length;i++){pool.splice(R(pool.length),1)[0].t=4}L.push(`⚠ 폭주 ${T.lv}단계! 대상 환상체를 3턴 안에 관리하세요`)}}
+ T.ab.forEach(a=>{if(a.t!=null){a.t--;if(a.t<=0){a.t=null;if(a.c!=null){a.c--;L.push(`${dn(T,a.id)}: 폭주 방치 → 카운터 -1`)}
+   else{T.en=Math.max(0,T.en-Math.round(T.q*.1));L.push(`${dn(T,a.id)}: 폭주 방치 → 할당량 10% 차감`)}}}});
+ chkBreak(T,L);nzTick(T,L);kcTick(T,L);ltTick(T,L);ldTick(T,L);chTick(T,L);shyTick(T,L,sw);
+ Object.values(T.ps).forEach(p=>{if(!p.al)return;
+  if(p.sp<=0&&!p.st){p.st=['패닉','도주','분노'][p.tr];L.push(`${p.n}: ${p.st} 상태`)}
+  p.sp=Math.max(0,p.sp)});
+ Object.values(T.ps).forEach(q=>{if(q.al&&q.st=='도주')Object.values(T.ps).forEach(o=>{if(o!==q&&o.al)o.sp=Math.max(0,o.sp-3)});
+  if(q.al&&q.st=='분노')Object.values(T.ps).forEach(o=>{if(o!==q&&o.al)o.hp-=3})});
+ post(T,L);regen(T,L);emChk(T,L);brTick(T,L);chkBreak(T,L);if(T.hy){const q=T.ps[T.hy.u];if(!q||!q.al||q.st){T.hy=null;L.push('⚙ 도구 사용이 중단됐어요')}}if(T.wc){const q=T.ps[T.wc.u];if(!q||!q.al)T.wc=null}
+  if(Object.values(T.ps).some(p=>p.al)&&!Object.values(T.ps).some(p=>p.al&&!p.sl))slDie(T,L);
+ T.r++;T.log=(L.concat(T.log||[])).slice(0,12);
+ if(!Object.values(T.ps).some(p=>p.al)){T.ph='over';return}
+ if(!T.bo&&T.oq>0)startOrd(T);if(T.bo)return;aft(T)}
+function finish(T,i){const c=T.vt.ch[i];
+ if(T.vt.kind=='end'){if(i==0){{const L0=[];slDie(T,L0);L0.reverse().forEach(x=>T.log.unshift(x));if(!Object.values(T.ps).some(p=>p.al)){T.ph='over';return}}hyDay(T);const g=Math.max(1,Math.round((1+Math.floor(T.day/3))*mult(T.en/T.q)));Object.values(T.ps).forEach(p=>p.lp+=g);
+   T.log.unshift(`${T.day}일차 종료: 롭포인트 +${g}`);Object.values(T.ps).forEach(p=>{if(p.g){if(p.al){const f=p.g.map(Math.floor),t=f.map((v,i)=>v>0?`${SN[i]}+${v}`:'').filter(Boolean).join(' ');p.s=p.s.map((v,i)=>v+f[i]);if(t)T.log.unshift(`📈 ${p.n} 성장: ${t}`)}p.g=[0,0,0,0]}});T.ph='shop'}else{T.ti++;T.ph='work'}}
+ else if(T.vt.kind=='dept')pickDept(T,c.d);else{T.ab.push({id:c.id,c:AB[c.id].c,t:null,dp:T.nd});if(--T.pk>0)startPick(T);else nxt(T)}}
+function tick(){if(!S||S.host!=me||busy||!S.ps)return;const T=JSON.parse(JSON.stringify(S)),ps=T.ps,ids=Object.keys(ps);let ch=0;ids.forEach(u=>{const a=A[u],p=ps[u];if(a&&a.xc&&a.xn>(p.lx||0)){p.lx=a.xn;xcmd(T,u,a.xc);ch=1}});
+ if(T.ph=='work'){const alive=ids.filter(u=>ps[u].al);if(!alive.length){T.ph='over';ch=1}
+  else{const al=alive.filter(u=>!ps[u].st);if(rq_(T,al).every(u=>A[u]&&A[u].r===T.r&&A[u].e)){roundRun(T,al.slice());ch=1}}}
+ else if(T.ph=='fight'){const alive=ids.filter(u=>ps[u].al);if(!alive.length){T.ph='over';ch=1}else{const al=alive.filter(u=>!ps[u].st&&!ps[u].iw);if(al.every(u=>A[u]&&A[u].fr===T.fr&&A[u].e)){fightRun(T,al);ch=1}}}
+ else if(T.ph=='vote'){const v=ids.filter(u=>A[u]&&A[u].vk===T.vk);
+  if(v.length==ids.length){const t=T.vt.ch.map(()=>0);v.forEach(u=>t[A[u].c]++);const mx=Math.max(...t),w=[];t.forEach((x,i)=>x==mx&&w.push(i));finish(T,w[R(w.length)]);ch=1}}
+ else if(T.ph=='shop'){ids.forEach(u=>{const a=A[u],p=ps[u];if(a&&a.b!=null&&a.n>p.ln){p.ln=a.n;buy(p,a.b);ch=1}if(a&&a.xc&&a.xn>(p.lx||0)){p.lx=a.xn;xcmd(T,u,a.xc);ch=1}});
+  if(!ch&&ids.every(u=>A[u]&&A[u].rd===T.day&&(A[u].rv||0)===(T.rv||0))){dayEnd(T);ch=1}}
+ if(T.rq){const q=T.rq,vs=ids.map(u=>A[u]&&A[u].qv&&A[u].qv.n===q.n?A[u].qv.y:-1),y=vs.filter(v=>v===1).length,no=vs.filter(v=>v===0).length;if(y*2>ids.length){const N=memBack(T,q.k);if(N)swapT(T,N);else T.rq=null;ch=1}else if(no*2>=ids.length){T.rq=null;T.log.unshift('🗳 되돌리기 투표가 부결됐어요');ch=1}}
+ if(ch){busy=1;db.doc('g/'+code).set(T).finally(()=>busy=0)}}
+function act(o){const b=Object.assign({},A[me]||{});if(o.r!=null&&b.r!==o.r){delete b.hu;delete b.he;delete b.wu;delete b.fu;delete b.mu;delete b.bu;delete b.su;delete b.hv;delete b.tu;delete b.aj}db.doc(`g/${code}/a/${me}`).set(Object.assign(b,o))}
+async function mk(){nm=$('#nm').value.trim()||'직원';code=Array.from({length:4},()=>'ABCDEFGHJKMNPQRSTUVWXYZ'[R(23)]).join('');
+ await db.doc('g/'+code).set({host:me,ph:'lobby',day:1});await join()}
+async function jn(){nm=$('#nm').value.trim()||'직원';code=$('#cd').value.trim().toUpperCase();
+ const d=await db.doc('g/'+code).get();if(!d.exists){alert('방을 찾을 수 없어요');code=null;return}await join()}
+function LR(){try{const r=JSON.parse(localStorage.getItem('lcRoom')||'null');if(r&&r.c)return '<div class=c>이어하기: 방 <b>'+esc(r.c)+'</b> ('+esc(r.n)+') <button onclick="rs_()">이어서 입장</button><br><span class=m>방은 저장되어 있어서 다른 날에도 같은 코드로 이어서 할 수 있어요</span></div>'}catch(e){}return''}
+async function rs_(){try{const r=JSON.parse(localStorage.getItem('lcRoom'));nm=r.n;code=r.c;const d=await db.doc('g/'+code).get();if(!d.exists){alert('방을 찾을 수 없어요');code=null;try{localStorage.removeItem('lcRoom')}catch(e){}render();return}await join()}catch(e){code=null;render()}}
+function dtm(e){if(e&&e.preventDefault){e.preventDefault();e.stopPropagation()}if(!S||!S.ps||!S.ps[me])return;if(!S.dtm){if(S.ph=='lobby')return;xc({t:'dtm'});return}DC++;BK=DC>=3?2:1;render()}
+function BKH(){return '<div style="position:fixed;inset:0;background:#000;color:#d11;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99;font-weight:700;font-size:'+(BK==1?'44px':'18px')+'" onclick="dtm()">'+(BK==1?'만지지마!!':'게임이 꺼졌습니다…')+(BK==2?'<br><button onclick="event.stopPropagation();BK=0;DC=0;render()">다시 켜기</button>':'')+'</div>'}
+function RQ(){const q=S&&S.rq;if(!q||!S.ps||!S.ps[me])return'';const ids=Object.keys(S.ps),v=u=>A[u]&&A[u].qv&&A[u].qv.n===q.n?A[u].qv.y:-1,mv=v(me),y=ids.filter(u=>v(u)===1).length,no=ids.filter(u=>v(u)===0).length;return '<div class=c style="border-color:var(--ac)"><b>🗳 '+(q.k=='m'?'기억저장소로 복귀':'오늘 시작으로 되돌리기')+' 투표</b> <span class=m>찬성 '+y+' · 반대 '+no+' / '+ids.length+'명 (과반 찬성 시 실행)</span><br><button class="'+(mv===1?'on':'')+'" onclick="act({qv:{n:'+q.n+',y:1}})">찬성</button><button class="'+(mv===0?'on':'')+'" onclick="act({qv:{n:'+q.n+',y:0}})">반대</button></div>'}
+function SVP(){if(!S.sv)return'';const m=S.sv.m,d=S.sv.d,host=S.host==me;return '<details class=c><summary><b>🧠 기억저장소 · 일일 저장</b> <span class=m>기억 '+(m?lbl(m):'없음')+' · 일일 '+(d?lbl(d):'없음')+'</span></summary><span class=m>기억저장소는 1·6·11…일차 구간마다 자동 저장돼요 (5일차 정산 직후). 복귀하면 도감 해금과 에고 장비(착용은 해제)는 유지되고, 직원 성장·기프트·사망·롭포인트·환상체 선택은 저장 시점으로 돌아가요. 이미 쓴 PE박스는 돌려주지 않아요.<br>일일 저장은 매일 시작 시점이에요. 되돌리면 그날 시작 상태 그대로 돌아가요.</span><br>'+(host?(S.rq?'<button onclick="xc({t:\'rc\'})">투표 취소</button>':'<button onclick="xc({t:\'rq\',k:\'m\'})">기억저장소 복귀 투표</button><button onclick="xc({t:\'rq\',k:\'d\'})">오늘 시작으로 되돌리기 투표</button>'):'<span class=m>복귀는 방장이 투표를 열어요</span>')+'</details>'}
+async function join(){await db.doc(`g/${code}/p/${me}`).set({n:nm});try{localStorage.setItem('lcRoom',JSON.stringify({c:code,n:nm}))}catch(e){}
+ const g=++gen;db.doc('g/'+code).onSnapshot(s=>{if(g!==gen)return;S=s.data();tick();render()});
+ db.collection(`g/${code}/p`).onSnapshot(s=>{if(g!==gen)return;P={};s.docs.forEach(d=>P[d.id]=d.data());render()});
+ db.collection(`g/${code}/a`).onSnapshot(s=>{if(g!==gen)return;A={};s.docs.forEach(d=>A[d.id]=d.data());tick();render()});
+ let pi=3000;const pl=async()=>{if(g!==gen)return;if(document.hidden||!S||S.host==me){setTimeout(pl,pi);return}
+  try{const[sg,sp,sa]=await Promise.all([db.doc('g/'+code).get(),db.collection(`g/${code}/p`).get(),db.collection(`g/${code}/a`).get()]);if(g!==gen)return;let ch=0;const d=sg.exists?sg.data():null;if(d&&JSON.stringify(d)!==JSON.stringify(S)){S=d;ch=1}const np={};sp.docs.forEach(x=>np[x.id]=x.data());if(JSON.stringify(np)!==JSON.stringify(P)){P=np;ch=1}const na={};sa.docs.forEach(x=>na[x.id]=x.data());if(JSON.stringify(na)!==JSON.stringify(A)){A=na;ch=1}if(ch)render()}catch(e){pi=Math.min(20000,pi*2)}
+  setTimeout(pl,pi)};}
+function start(){const ps={};Object.keys(P).forEach(u=>ps[u]={n:P[u].n,s:[10,10,10,10],hp:50,sp:50,al:1,lp:0,tr:R(3),ln:0,st:null});
+ const T={host:me,day:1,ps,eb:{},vk:0,log:['게임 시작!'],dl:[1,0,0,0,0,0,0,0,0,0],ab:[{id:0,c:null,t:null}]};init(T);T.sv.m=snap(T);db.doc('g/'+code).set(T)}
+const OP={},FN=['상층','중층','하층'];
+function mcard(a,i,p){const d=AB[a.id],x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,un=UL(S,a.id),ok=p.al&&!p.st&&p.fl===fl;
+ const b='<button class="'+(x.mu===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',mu:'+i+',w:null,mv:null,cu:null,e:0})">거울을 본다</button>'+(un.m&&un.m[1]?' <span class=m>오늘 '+(p.mc||0)+'회 사용'+((p.mc||0)>=1?' · 다음 사용부터 모든 능력치 감소':' · 하루 2번째 사용부터 모든 능력치 감소')+'</span>':'')+(ok?'':' <span class=m>'+FN[fl]+'에서만 사용 가능</span>');
+ return '<div class=c><b>'+(un.n?d.n:'??? ('+d.code+')')+'</b> <span class=m>'+d.g+' · 도구형(단발) · 팀 누적 사용 '+(S.hm||{n:0}).n+'회</span><br>'+b+'</div>'}
+function tcard(a,i,p){const d=AB[a.id],x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,un=UL(S,a.id),ok=p.al&&!p.st&&p.fl===fl;
+ const b='<b>'+(a.on?'작동 중':'멈춤')+'</b>'+(a.on&&un.m&&un.m[1]?' · 내가 듣는 시간 '+(p.th||0)+'/3턴':'')+'<br><button class="'+(x.tu===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',tu:'+i+',w:null,mv:null,cu:null,e:0})">'+(a.on?'정지':'작동')+'</button>'+(a.on?' <span class=m>'+DN[a.dp||0]+'의 모든 직원에게 정신력 회복</span>':'');
+ return '<div class=c><b>'+(un.n?d.n:'??? ('+d.code+')')+'</b> <span class=m>'+d.g+' · 도구형(채널링) · 팀 누적 작동 '+(S.hr||{r:0}).r+'턴'+(ok?'':' · '+FN[fl]+'에서만 사용 가능')+'</span><br>'+b+'</div>'}
+function jcard(a,i,p){const d=AB[a.id],x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,un=UL(S,a.id),H=S.ba,ok=p.al&&!p.st&&p.fl===fl;let b;
+ if(H&&H.u==me){b='<b>착용 중</b> · 착용 '+H.k+'턴'+(p.bdk>0?' · 이상행동':'')+'<br><button class="'+(x.aj===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',aj:'+i+',w:null,mv:null,cu:null,e:0})">반납(해제)</button>'+(un.m&&un.m[1]?' <span class=m>착용 직후 2턴 이내 반납 시 패닉 후 사망</span>':'')+(un.m&&un.m[2]?' <span class=m>정신력 0이면 사망</span>':'')}
+ else if(H)b='<span class=m>'+esc((S.ps[H.u]||{}).n||'?')+'가 착용 중이에요</span>';
+ else b='<button class="'+(x.aj===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',aj:'+i+',w:null,mv:null,cu:null,e:0})">장착</button>';
+ return '<div class=c><b>'+(un.n?d.n:'??? ('+d.code+')')+'</b> <span class=m>'+d.g+' · 도구형(장착) · 팀 누적 장착 '+(S.hj||{r:0}).r+'턴'+(ok?'':' · '+FN[fl]+'에서만 사용 가능')+'</span><br>'+b+'</div>'}
+function ecard(a,i,p){const d=AB[a.id],x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,un=UL(S,a.id),H=S.ht,ok=p.al&&!p.st&&p.fl===fl;let b;
+ if(H&&H.u==me){b='<b>착용 중</b> · 착용 '+H.k+'턴'+(un.m&&un.m[1]?' · 공격 '+(H.at?'함':'안 함'):'')+'<br><button class="'+(x.hv===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',hv:'+i+',w:null,mv:null,cu:null,e:0})">반납(해제)</button>'+(un.m&&un.m[1]?' <span class=m>공격하지 않았거나 착용 직후 2턴 이내에 반납하면 분노</span>':'')}
+ else if(H)b='<span class=m>'+esc((S.ps[H.u]||{}).n||'?')+'가 착용 중이에요</span>';
+ else b='<button class="'+(x.hv===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',hv:'+i+',w:null,mv:null,cu:null,e:0})">장착</button>';
+ return '<div class=c><b>'+(un.n?d.n:'??? ('+d.code+')')+'</b> <span class=m>'+d.g+' · 도구형(장착) · 팀 누적 장착 '+(S.hc||{r:0}).r+'턴'+(ok?'':' · '+FN[fl]+'에서만 사용 가능')+'</span><br>'+b+'</div>'}
+function scard(a,i,p){const d=AB[a.id],x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,un=UL(S,a.id),mx=p.s[1]>=100,ok=p.al&&!p.st&&p.fl===fl&&!mx;
+ const b='<button class="'+(x.su===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',su:'+i+',w:null,mv:null,cu:null,e:0})">책을 읽는다</button> <span class=m>'+(un.m&&un.m[1]?'내 지혜 '+Math.floor(p.s[1])+'/100':'')+(un.m&&un.m[2]?' · 읽은 횟수 '+(p.sk||0)+'회 · White 피해 ×'+(1+.1*(p.sk||0)).toFixed(1):'')+(un.m&&un.m[3]&&(p.sk||0)>0?' · 패닉 시 소멸':'')+(mx?' · 지혜가 한계예요':'')+(p.fl===fl?'':' · '+FN[fl]+'에서만 사용 가능')+'</span>';
+ return '<div class=c><b>'+(un.n?d.n:'??? ('+d.code+')')+'</b> <span class=m>'+d.g+' · 도구형(단발) · 팀 누적 사용 '+(S.hs||{n:0}).n+'회</span><br>'+b+'</div>'}
+function bcard(a,i,p){const d=AB[a.id],x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,un=UL(S,a.id),B=S.br,ok=p.al&&!p.st&&p.fl===fl;let b;
+ if(B&&B.u==me){b='<b>착용 중</b>'+(un.m&&un.m[3]?' · 체력 최대 유지 '+(B.k||0)+'/4턴':'')+'<br><button class="'+(x.bu===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',bu:'+i+',w:null,mv:null,cu:null,e:0})">반납(해제)</button>'+(un.m&&un.m[2]?' <span class=m>체력이 감소한 상태에서 반납하면 사망</span>':'')}
+ else if(B)b='<span class=m>'+esc((S.ps[B.u]||{}).n||'?')+'가 착용 중이에요</span>';
+ else b='<button class="'+(x.bu===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',bu:'+i+',w:null,mv:null,cu:null,e:0})">장착</button>';
+ return '<div class=c><b>'+(un.n?d.n:'??? ('+d.code+')')+'</b> <span class=m>'+d.g+' · 도구형(장착) · 팀 누적 장착 '+(S.hb||{r:0}).r+'턴'+(ok?'':' · '+FN[fl]+'에서만 사용 가능')+'</span><br>'+b+'</div>'}
+function fcard(a,i,p){const d=AB[a.id],x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,un=UL(S,a.id),e=(S.eq||[]).find(q=>q.u===me&&q.k=='w'),lv=e?e.lv||0:0,cs=Math.max(1,Math.round(S.q*[.02,.03,.05,.12][Math.min(lv,3)])),ok=p.al&&!p.st&&p.fl===fl&&e&&lv<4&&S.en>=cs;let b;
+ if(!e)b='<span class=m>에고 무기를 장착해야 강화할 수 있어요 (기본 무기는 불가)</span>';else if(lv>=4)b='<span class=m>'+esc(eN(e.id,'w').replace(' (무기)',''))+' 최대 강화 (+4강)</span>';
+ else b='<span class=m>내 무기 '+esc(eN(e.id,'w').replace(' (무기)',''))+' +'+lv+'강 → +'+(lv+1)+'강 · 에너지 '+cs+' 소모'+(un.m&&un.m[2]?' · 성공 '+(85-15*lv)+'% · 실패 시 소멸':'')+'</span><br><button class="'+(x.fu===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',fu:'+i+',w:null,mv:null,cu:null,e:0})">강화 시도</button>'+(ok||p.fl===fl?(S.en<cs?' <span class=m>에너지가 부족해요</span>':''):' <span class=m>'+FN[fl]+'에서만 사용 가능</span>');
+ return '<div class=c><b>'+(un.n?d.n:'??? ('+d.code+')')+'</b> <span class=m>'+d.g+' · 도구형(단발) · 팀 누적 사용 '+(S.hf||{n:0}).n+'회</span><br>'+b+'</div>'}
+function wcard(a,i,p){const d=AB[a.id],W=S.wc,x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,ok=p.al&&!p.st&&p.fl===fl&&!p.iw,un=UL(S,a.id),lv2=un.m&&un.m[1];let b;
+ if(W&&W.u==me)b='<b>기계 안</b> · '+W.k+'라운드째 · 생성한 에너지 +'+W.e+' · RED 피해를 계속 받아요<br><span class=m>나올 수 없어요 · 이번 턴 선택은 무시돼요</span>';
+ else if(W)b='<span class=m>'+esc((S.ps[W.u]||{}).n||'?')+'가 안에 있어요 ('+W.k+'라운드째)</span>';
+ else b='<button class="'+(x.wu===i?'on':'')+'" '+(ok?'':'disabled')+' onclick="act({r:'+S.r+',wu:'+i+',w:null,mv:null,cu:null,e:0})">들어가기</button>'+(lv2?' <span class=w>⚠ 한 번 들어가면 사망할 때까지 나올 수 없어요</span>':'')+(ok?'':' <span class=m>'+(p.iw?'':FN[fl]+'에서만 이용 가능')+'</span>');
+ return '<div class=c><b>'+(un.n?d.n:'??? ('+d.code+')')+'</b> <span class=m>'+d.g+' · 도구형(채널링) · 팀 누적 '+(S.hw||{r:0}).r+'라운드 · '+(S.hw||{n:0}).n+'회</span><br>'+b+'</div>'}
+function hcard(a,i,p){const d=AB[a.id],H=S.hy,x=A[me]&&A[me].r===S.r?A[me]:{},fl=DP[a.dp||0].f,ok=p.al&&!p.st&&p.fl===fl,un=UL(S,a.id),g=p.yg||[0,0,0,0],t=g.reduce((s,v)=>s+v,0);
+ let b='';if(H&&H.u==me)b=`<b>사용 중</b> · ${H.k}라운드째 · 상단 <b style="font-size:22px">${H.ok?'YES':'NO'}</b> · 모든 능력치 누적 +${g[0]} (합계 +${t})<br><button class="${x.he?'on':''}" onclick="act({r:${S.r},he:${x.he?0:1},e:0})">사용 종료 예약 (${H.ok?'YES — 상승 유지':'NO — 상승 모두 소멸'})</button><br><span class=m>예약하지 않으면 계속 사용해요. 이번 턴에 보이는 상단 상태로 판정해요.</span>`;else if(H)b=`<span class=m>${esc((S.ps[H.u]||{}).n||'?')}가 사용 중이에요</span>`;else if(S.hl)b='<span class=m>오늘은 이미 사용되었어요 (하루 1명)</span>';else b=`<button class="${x.hu===i?'on':''}" ${ok?'':'disabled'} onclick="act({r:${S.r},hu:${i},he:0,w:null,mv:null,cu:null,e:0})">사용 시작</button> <span class=m>내 사용 횟수 ${p.yc||0}/5${ok?'':' · '+FN[fl]+'에서만 사용 가능'}</span>`;
+ return `<div class=c><b>${un.n?d.n:'??? ('+d.code+')'}</b> <span class=m>${d.g} · 도구형(채널링) · 팀 누적 ${(S.hu||{r:0}).r}라운드 · ${(S.hu||{n:0}).n}회</span><br>${b}</div>`}
+function HDEX(i){const d=AB[i],u=UL(S,i),h=S[d.ck]||{r:0,n:0},cd=d.cd.map(([k,v])=>!v?'기본 해금':k=='r'?v+'턴 사용 시 해금 · 현재 '+h.r+'턴':v+'회 사용 시 해금 · 현재 '+h.n+'회');return `<details class=c><summary><b>${u.n?esc(d.n):'???'}</b> <span class=m>${d.code} · ${d.g} · 도구형 · 해금 ${ucnt(S,i)}/${utot(i)}</span></summary><span class=m>${esc(d.desc)}</span>${u.m.map((o,k)=>'<br>'+(o?'✔ 관찰 레벨 '+(k+1)+' <span class=m>('+(d.cd[k][1]?(d.cd[k][0]=='r'?d.cd[k][1]+'턴 사용 시 해금':d.cd[k][1]+'회 사용 시 해금'):'기본 해금')+')</span>: '+esc(d.tp[k])+(d.us[k]?'<br>&nbsp;&nbsp;<span class=m>사용법: '+esc(d.us[k])+'</span>':''):'🔒 관찰 레벨 '+(k+1)+' <span class=m>('+cd[k]+')</span>')).join('')}<br><span class=m>이름은 모든 정보를 해금하면 공개돼요</span></details>`}
+function card(a,i,p){if(AB[a.id].sp=='happy')return hcard(a,i,p);if(AB[a.id].sp=='wcan')return wcard(a,i,p);if(AB[a.id].sp=='faith')return fcard(a,i,p);if(AB[a.id].sp=='mirror')return mcard(a,i,p);if(AB[a.id].sp=='brace')return bcard(a,i,p);if(AB[a.id].sp=='skin')return scard(a,i,p);if(AB[a.id].sp=='heart')return ecard(a,i,p);if(AB[a.id].sp=='adj')return jcard(a,i,p);if(AB[a.id].sp=='music')return tcard(a,i,p);const d=AB[a.id],x=A[me]&&A[me].r===S.r?A[me]:{},sel=x.w,fl=DP[a.dp||0].f,ok=p.al&&!p.st&&p.fl===fl&&((a.dp||0)!=9||[7,8,9].includes(p.lc!=null?p.lc:(p.dp||0)));
+ const un=UL(S,a.id);return `<div class=c ${a.id===DTM?'onclick="dtm()"':''}><b>${un.n?nmOf(S,a.id):'??? ('+d.code+')'}</b> <span class=m>${gdOf(S,a.id)} · ${un.n?DT[d.d]:'???'} · 최대 ${d.m}회 · PE박스 ${S.eb[a.id]||0}</span>${!un.n?' · 카운터 ???':a.c!=null?` · 카운터 ${a.c}/${d.c}`:' · 카운터 없음'}${un.e?(a.c!=null?' · 탈출 가능':' · 탈출 불가'):' · 탈출 ???'}${a.t!=null?` <span class=w>⚠ 폭주 ${a.t}턴 남음</span>`:''}${a.ln?' <span class=w>🌑 고독 쌓임</span>':''}${a.cm==1?' <span class=w>🌸 매혹 발생</span>':''}${d.sp=='beast'&&un.m&&(un.m[0]||un.m[1])?' · 건강 '+(a.hl==null?3:a.hl)+'/6':''}${d.sp=='bath'&&un.m&&un.m[1]?' · 손 '+(a.bh||0)+'/3':''}${d.sp=='shy'&&un.m&&(un.m[0]||un.m[1])?' · 표정 '+(a.ex==null?3:a.ex)+' '+['😊 행복한 얼굴','🙂 웃는 얼굴','😐 무표정','😢 슬픈 얼굴','😠 화난 얼굴'][(a.ex==null?3:a.ex)-1]:''}<br>${W.map((n,w)=>`<button class="${sel&&sel[0]==i&&sel[1]==w?'on':''}" ${ok?'':'disabled'} onclick="${a.id===DTM?'dtm()':'act({r:'+S.r+',w:['+i+','+w+'],mv:null,cu:null,e:0})'}">${d.sp=='pink'&&w==2?'보호':n}${un.p&&un.p[w]&&!(d.sp=='pink'&&w==2)?' '+PM(rateOf(p,d,w)):''}</button>`).join('')}${d.sp=='lantern'&&a.es&&S.ph=='work'?`<button class=w onclick="xc({t:'lsup',i:${i}})">⚔ 제압 명령</button>`:''}${d.sp=='cherry'?Object.keys(S.ps).filter(u=>S.ps[u].al&&S.ps[u].st=='매혹').map(u=>`<button class=w ${ok&&p.tk!==S.r?'':'disabled'} onclick="xc({t:'tk',i:${i},u:'${u}'})">💬 말걸기 → ${esc(S.ps[u].n)} (${S.ps[u].cg||0}/2 · ${S.ps[u].mh}턴 · 성공 ${Math.round(40+55*(Math.max(10,Math.min(85,p.s[1]))-10)/75)}%)</button>`).join(''):''}${ok?'':` <span class=m>(${(a.dp||0)==9&&p.fl===fl?'설계팀은 추출팀·기록팀에서만 갈 수 있어요':FN[fl]+'에서만 작업 가능'})</span>`}</div>`}
+function DET(dp,p){const ab=S.ab.map((a,i)=>[a,i]).filter(([a])=>(a.dp||0)==dp);return `<details class=c ${OP[dp]?'open':''} ontoggle="OP[${dp}]=this.open"><summary><b>${DN[dp]}${(S.nz||[]).includes(dp)?' 📻':''}</b> <span class=m>${FN[DP[dp].f]} · 칸 ${ab.length}/${DP[dp].x?8:4} · 사무직 ${S.cl[dp]}</span>${ab.some(([a])=>a.t!=null)?' <span class=w>⚠ 폭주</span>':''}</summary>${ab.map(([a,i])=>card(a,i,p)).join('')}</details>`}
+function BAR(){const p=S.ps&&S.ps[me];if(!p||(S.ph!='work'&&S.ph!='fight'))return'';const f=S.ph=='fight',k=f?'fr':'r',al=rq_(S,Object.keys(S.ps).filter(u=>S.ps[u].al&&!S.ps[u].st&&!(f&&S.ps[u].iw))),x=A[me]&&A[me][k]===S[k]?A[me]:{},n=al.filter(u=>A[u]&&A[u][k]===S[k]&&A[u].e).length;return `<div class=bar><button class="${x.e?'on':''}" ${p.al&&!p.st?'':'disabled'} onclick="${f?'endF':'endT'}()">턴 종료 (${n}/${al.length})</button></div>`}
+function CTL(){const p=S.ps[me],x=A[me]&&A[me].r===S.r?A[me]:{},al=rq_(S,Object.keys(S.ps).filter(u=>S.ps[u].al&&!S.ps[u].st)),n=al.filter(u=>A[u]&&A[u].r===S.r&&A[u].e).length,mv=x.mv!=null?x.mv:p.mv,can=p.al&&!p.st;
+ return `<div class=c>위치 <b>${FN[p.fl]}</b>${p.mv!=null?` · 이동 중 → ${FN[p.mv]}`:''}<br>이동: ${FN.map((nm,f)=>`<button class="${mv===f&&f!==p.fl?'on':''}" ${can&&f!=p.fl?'':'disabled'} onclick="act({r:${S.r},mv:${f},w:null,cu:null,e:0})">${nm}</button>`).join('')}${p.mv!=null||(x.mv!=null&&x.mv>=0)?`<button onclick="act({r:${S.r},mv:-1,w:null,cu:null,e:0})">이동 취소</button>`:''}${(p.lc===4&&p.fl===1||p.fl===0&&gmv(p)>5)&&mv===2?`<br>하층 도착: ${[7,8].filter(d=>S.dl[d]>0).map(d=>`<button class="${(x.md||0)===d?'on':''}" ${can?'':'disabled'} onclick="act({r:${S.r},md:${d},e:0})">${DN[d]}</button>`).join('')}`:''}${p.fl===1&&mv===2&&p.lc!==4?`<br><span class=m>도착: ${DN[p.lc===6?8:7]}</span>`:''}${Object.keys(S.ps).filter(u=>S.ps[u].al&&S.ps[u].st).map(u=>`<br><button class="${x.cu===u?'on':''}" ${can?'':'disabled'} onclick="act({r:${S.r},cu:'${u}',w:null,mv:null,e:0})">${esc(S.ps[u].n)} 진정 (${S.ps[u].st}) · ${['RED:HP만 깎임','WHITE','BLACK:HP↓SP↑','PALE:HP↓SP↑'][p.wt||0]}</button>`).join('')}${x.cu?'<button onclick="act({r:'+S.r+',cu:null,e:0})">진정 취소</button>':''}<br><button class="${x.e?'on':''}" ${can?'':'disabled'} onclick="endT()">턴 종료 (${n}/${al.length})</button><br><span class=m>모두 턴 종료를 누르기 전까지 선택을 바꿀 수 있어요 · 이동은 층당 1턴</span></div>`}
+const OD=['여명','정오','어스름','자정'];
+function startOrd(T){if(!(T.oq>0))return 0;const tr=(T.ot||0)+1,ops=Object.keys(T.dl).filter(d=>T.dl[d]>0),dp=+ops[R(ops.length)],hp=[150,300,520,800][tr-1];T.ot=tr;T.oq--;T.ox=1;T.bo={ord:tr,hp,mx:hp,t:0,lim:8+3*tr,tg:tr<3?2:3,ag:tr+1,sg:Math.round(hp*.8),smx:Math.round(hp*.8),stg:0,e:{n:OD[tr-1]+'의 시련',d:R(4),g:'HE',dp}};T.fr=(T.fr||0)+1;T.ph='fight';rollDice(T);T.log.unshift(`🌅 ${OD[tr-1]}의 시련 시작 — ${DN[dp]}`);return 1}
+function sd(k,a,t){const my=A[me]&&A[me].fr===S.fr?A[me]:{},ds=Object.assign({},my.ds||{});ds[k]={a,t};act({fr:S.fr,ds,e:0})}
+function FIGHT(p){
+ const b=S.bo,a=b.e?null:S.ab[b.i],E=b.e||AB[a.id],dp=b.e?b.e.dp:(a.dp||0),dc=b.dc||[],my=A[me]&&A[me].fr===S.fr?A[me]:{},ch=my.ds||{},H=[];
+ const nm=d=>d.s=='e'?`적#${d.n+1}`:`${esc(S.ps[d.u].n)}#${d.n+1}`;
+ const nx=d=>d.s=='r'?`${nm(d)}(${S.ps[d.u].st})`:nm(d);
+ const tl=d=>!d.tg?'':d.tg.k<0?` → ${esc(S.ps[d.tg.u].n)} (주사위 없음)`:` → ${nm(dc[d.tg.k])}`;
+ const un=b.ord?{n:1,e:1}:UL(S,a.id);H.push(`<div class=c><b>⚔ ${b.ord?'':'제압작전: '}${un.n?esc(b.e?E.n:(AB[a.id].nf||nmOf(S,a.id))):'??? ('+AB[a.id].code+')'}</b> ${un.e?`HP ${Math.max(0,b.hp)}/${b.mx} · 흐트러짐 ${b.sg}/${b.smx}`:'HP ??? · 흐트러짐 ???'}${b.stg>0?' <span class=w>💫 흐트러짐 중</span>':''}<br><span class=m>${b.t+1}턴째 · 피해 ${un.n?DT[E.d]:'???'}${b.ord?` · 제한 ${b.lim}턴`:''} · 위치 ${DN[dp]} · 생존 사무직 ${S.cl[dp]}명</span></div>`);
+ const en=dc.filter(d=>d.s!='p');if(b.ko)H.push('<div class=c><b class=w>⚠ 모든 직원이 행동불가</b><br><span class=m>이번 턴은 자동으로 넘어가며 받는 피해가 2배예요. 다음 턴에 모두 정신을 차려요.</span></div>');
+ H.push(`<div class=c><b>🎲 상대 주사위</b>${en.length?'':' <span class=m>(없음: 흐트러져서 행동 불가)</span>'}${en.map(d=>`<br>${d.s=='r'?'⚠ ':''}${nx(d)} · 속도 <b>${d.sp}</b>${tl(d)}`).join('')}</div>`);
+ const mine=dc.filter(d=>d.s=='p'&&d.u==me),mp=S.ps[me],cl0=Object.keys(S.ps).find(u=>S.ps[u].al&&S.ps[u].st)||'';
+ if(!mine.length)H.push(`<div class=c><span class=m>${mp.al?(mp.st=='패닉'?'패닉: 주사위를 굴릴 수 없어요 (받는 피해 ×1.5)':'이번 턴에는 내 주사위가 없어요'):'사망'}</span></div>`);
+ mine.forEach(d=>{const c=ch[d.k]||{a:'atk',t:-1},sto=x=>dc.filter(y=>y.s=='p'&&y.u!=me&&y.u!=x.tg.u).filter(y=>{const q=A[y.u]&&A[y.u].fr===S.fr&&A[y.u].ds&&A[y.u].ds[y.k];return q&&q.a=='atk'&&q.t===x.k}).map(y=>esc(S.ps[y.u].n)),inc=dc.filter(x=>x.tg&&x.tg.k==d.k&&x.tg.u==me).map(x=>{const t=sto(x);return `${nx(x)}(속도 ${x.sp})${t.length?' 🤝'+t.join(',')+'가 합 진행 예정':''}`});
+  const tg=c.a=='atk'?[[-1,'본체']].concat(dc.filter(x=>x.s=='e'&&x.sp<=d.sp).map(x=>[x.k,`${nm(x)} (속도 ${x.sp})${x.tg&&x.tg.u!=me&&x.tg.k>=0?' 🤝'+esc(S.ps[x.tg.u].n)+'를 노리는 합 진행':''}`])):c.a=='calm'?Object.keys(S.ps).filter(u=>S.ps[u].al&&S.ps[u].st).map(u=>[u,`${esc(S.ps[u].n)} (${S.ps[u].st})`]):[];
+  H.push(`<div class=c><b>🎲 내 주사위 #${d.n+1}</b> · 속도 <b style="font-size:20px">${d.sp}</b>${inc.length?`<br><span class=w>← ${inc.join(', ')} 공격 예정 (합 가능)</span>`:''}<br>${['atk','def','calm'].map(k=>`<button class="${c.a==k?'on':''}" onclick="sd(${d.k},'${k}',${k=='atk'?-1:k=='calm'?`'${cl0}'`:-1})">${AN[k]}</button>`).join('')}${mp.wt!==1?'<br><span class=m>⚠ WHITE가 아닌 무기로 진정하면 대상의 HP가 깎여요 (RED: 회복 없음 · BLACK/PALE: HP를 잃으며 정신력 회복)</span>':''}<br>${tg.length?tg.map(([t,l])=>`<button class="${c.t===t?'on':''}" onclick="sd(${d.k},'${c.a}',${typeof t=='number'?t:`'${t}'`})">${l}</button>`).join(''):(c.a=='calm'?'<span class=m>진정할 아군이 없어요</span>':'<span class=m>방어: 들어오는 공격에 합으로 대응해요</span>')}</div>`)});
+ const oth=dc.filter(d=>d.s=='p'&&d.u!=me);
+ if(oth.length)H.push(`<div class=c><b>아군 선택 현황</b>${oth.map(d=>{const cc=((A[d.u]&&A[d.u].fr===S.fr&&A[d.u].ds)||{})[d.k],t=!cc?'미선택 (공격-본체)':cc.a=='atk'?`공격 → ${cc.t>=0&&dc[cc.t]?nm(dc[cc.t]):'본체'}`:cc.a=='calm'?`진정 → ${esc((S.ps[cc.t]||{}).n||'?')}`:'방어';return `<br>${nm(d)} · 속도 ${d.sp}: ${t}`}).join('')}</div>`);
+ const fl=Object.keys(S.ps).filter(u=>S.ps[u].al&&!S.ps[u].st&&!S.ps[u].iw),fn=fl.filter(u=>A[u]&&A[u].fr===S.fr&&A[u].e).length;
+ H.push(`<div class=c><button class="${my.e?'on':''}" ${p.al&&!p.st?'':'disabled'} onclick="endF()">턴 종료 (${fn}/${fl.length})</button><br><span class=m>내 주사위는 속도가 같거나 느린 상대 주사위에 합을 걸 수 있어요. 더 빠른 상대가 나를 노리면 그 주사위로 합을 받아요. 모두 누르기 전까지 바꿀 수 있어요.</span></div>`);
+ return H.join('')}
+function CODEX(){const ids=[...new Set(S.ab.map(a=>a.id))],H=[];H.push('<details class=c><summary><b>📖 도감</b> <span class=m>PE박스로 정보 해금 (팀 공용)</span></summary>');
+ ids.forEach(i=>{if(AB[i].chn){H.push(HDEX(i));return}const d=AB[i],u=UL(S,i),eb=S.eb[i]||0,tot=utot(i),n=ucnt(S,i),pc=Math.floor(100*n/tot),bt=(k,cs,done,lab)=>done?lab:`<button ${eb>=cs?'':'disabled'} onclick="xc({t:'unl',i:${i},k:'${k}'})">${lab.replace(/^.*$/,m=>m)} 해금 (${cs})</button>`;
+  const rows=[];
+  rows.push(u.n?'✔ 이름: '+esc(d.n):bt('n',ucost(i,0),0,'이름'));
+  for(let x=0;x<mnn(i);x++)rows.push(u.m&&u.m[x]?'✔ 관리법: '+esc((d.tp||[])[x]||'?'):bt('m'+x,ucost(i,1),0,'관리법 '+(x+1)));
+  for(let x=0;x<4;x++)rows.push(u.p&&u.p[x]?(d.sp=='pink'&&x==2?'✔ 보호: 의뢰 명령 (판정 없음)':'✔ '+WN[x]+': '+PM(rateOf(S.ps[me]||{s:[10,10,10,10]},d,x))+' (내 스탯 기준)'):bt('p'+x,ucost(i,2),0,'선호 작업 '+(d.sp=='pink'&&x==2?'보호':WN[x])));
+  rows.push(u.e?'✔ 탈출: '+(d.c!=null?'가능':'불가'):bt('e',ucost(i,3),0,'탈출 여부'));
+  const w60=pc>=60,w100=n>=tot,rs=d.rs||[1,1,1,1],ss=d.ss||[1,1,1,1];
+  H.push(`<details class=c><summary ${i===DTM?'onclick="dtm(event)"':''}><b>${u.n?esc(nmOf(S,i)):'???'}</b> <span class=m>${d.code} · ${gdOf(S,i)} · 해금 ${n}/${tot} · PE박스 ${eb}</span></summary><span class=m>${esc(d.desc)}</span><br>${rows.join('<br>')}<br><span class=m>${w60?'✔':'🔒'} 무기 제작 · ${w100?'✔':'🔒'} 방어구</span>${u.e?`<br><span class=m>내성 체력 ${DT.map((t,k)=>t+'×'+rs[k]).join(' ')} · 흐트러짐 ${DT.map((t,k)=>t+'×'+ss[k]).join(' ')}</span>`:''}</details>`)});
+ H.push('<span class=m>정보 해금과 에고 추출은 같은 PE박스를 써요.</span></details>');return H.join('')}
+function xc(c){act({xc:c,xn:Date.now()})}
+function EGO(p){const H=[],eq=S.eq||[],ids=[...new Set(S.ab.map(a=>a.id))].filter(i=>!AB[i].noeq);
+ H.push('<details class=c open><summary><b>🧪 에고 추출 · 장비 (공유 창고)</b></summary>');
+ ids.forEach(i=>{const e=S.eb[i]||0;['w','a'].forEach(k=>{if(k=='w'&&AB[i].nw)return;const q0=AB[i][k]||{},cnt=eq.filter(x=>x.id===i&&x.k===k).length,lim=q0.lim||EL[eqg(i,k)],full=cnt>=lim,gt=k=='w'?upct(S,i)>=.5999:upct(S,i)>=.9999;
+  H.push(`<div class=m>${hasN(S,i)?esc(eN(i,k)):AB[i].code+' '+eKN[k]} · ${GI[eqg(i,k)]}${hasN(S,i)?' · '+DT[eT(i,k)]:''}<br>PE박스 ${e}/${ecost(i,k)} · 보유 ${cnt}/${lim} <button ${e>=ecost(i,k)&&!full&&gt?'':'disabled'} onclick="xc({t:'ext',i:${i},k:'${k}'})">${full?'보유 한도':gt?'추출':(k=='w'?'정보를 더 해금해야 해요':'정보를 모두 해금해야 해요')}</button></div>`)})});
+ H.push('<hr><b>보유 장비 (공유)</b>');if(!eq.length)H.push('<br><span class=m>아직 없어요</span>');
+ eq.forEach(x=>{const q=AB[x.id][x.k]||{},mine=x.u===me,rq=!reqOk(p,q),ex=x.k=='w'?' · '+DT[eT(x.id,'w')]+' · '+(q.r?'원거리':'근접')+(q.dm?' · 위력 '+q.dm[0]+'~'+q.dm[1]:'')+(q.sdt?' · 공격 속도 '+q.sdt:'')+(q.fxt?' · '+q.fxt:''):q.rs?' · 내성 '+DT.map((t,j)=>t[0]+'×'+q.rs[j]).join(' ')+(q.fxt?' · '+q.fxt:''):'';
+  H.push(`<div class=m>${esc(eN(x.id,x.k))}${x.lv?' +'+x.lv+'강':''} · ${GI[eqg(x.id,x.k)]}${ex}${reqTxt(q)} · ${x.u?esc((S.ps[x.u]||{}).n||'?'):'미장착'} ${mine?`<button class=on onclick="xc({t:'un',k:'${x.k}'})">해제</button>`:x.u?'':`<button ${p.al&&!rq?'':'disabled'} onclick="xc({t:'eq',i:${x.id},k:'${x.k}'})">${rq?'요구 조건 미충족':'장착'}</button>`}</div>`)});
+ H.push('<hr><b>🎁 에고 기프트 (개인 창고)</b>');const gi=p.gi||[];if(!gi.length)H.push('<br><span class=m>없어요 (좋음 결과의 작업에서 낮은 확률로 얻어요 · 얻으면 바로 장착되고, 같은 부위의 다른 기프트가 있으면 창고에서 교체할 수 있어요)</span>');
+ gi.forEach(i=>{const g=gfo(p,i),on=(p.ge||[])[g.sl]===i;H.push(`<div class=m>${esc(g.n)} · 부위 ${GS[g.sl]} · ${g.rate?'작업 성공률 +'+g.rate+(g.only?' (해당 환상체만)':''):''}${g.mhp?' 최대 체력 '+(g.mhp>0?'+':'')+g.mhp:''}${g.msp?' · 최대 정신력 +'+g.msp:''}${g.spd?' · 전투 속도 +'+Math.max(1,Math.floor(g.spd*.25)):''}${g.mv?' · 이동 속도 +'+g.mv:''}${g.syn?' · 같은 환상체 방어구 장착 시 무기 공격력 +15%':''}${g.ax?' · 해당 방어구 장착 시 최대 정신력 '+g.ax.msp+', 전투 속도 +'+g.ax.cs:''} <button class="${on?'on':''}" ${on||i===PD?'disabled':''} onclick="xc({t:'ge',i:${i}})">${on?(i===PD?'고정':'장착 중'):'교체'}</button></div>`)});
+ H.push('<span class=m>진정은 WHITE 무기가 안전해요 (RED는 HP만 깎고, BLACK/PALE은 HP를 잃으며 정신력 회복). 장비나 기프트를 가진 채 사망하면 모두 사라져요.</span></details>');return H.join('')}
+function endF(){const x=A[me]&&A[me].fr===S.fr?A[me]:{};act({fr:S.fr,ds:x.ds||{},e:x.e?0:1})}
+function endT(){const x=A[me]&&A[me].r===S.r?A[me]:{};act({r:S.r,w:x.w||null,mv:x.mv==null?null:x.mv,e:x.e?0:1})}
+function leave(){gen++;code=null;S=null;P={};A={};busy=0;render()}
+async function to(){const T=JSON.parse(JSON.stringify(S));if(T.ph!='work'||T.bo)return;if((T.ot||0)>=4)T.ot=0;T.oq=1;startOrd(T);await db.doc('g/'+code).set(T)}
+async function sk(n){const T=JSON.parse(JSON.stringify(S));for(let k=0;k<n&&T.day<=50;k++){dayEnd(T);while(T.ph=='vote')finish(T,R(T.vt.ch.length));if(T.ph=='win')break}await db.doc('g/'+code).set(T)}
+function render(){const h=[],p=S&&S.ps&&S.ps[me];
+ if(!code){$('#app').innerHTML=LR()+`<div class=c>닉네임 <input id=nm value="${esc(nm)}" maxlength=10><br><button onclick=mk()>새 방 만들기</button> 코드 <input id=cd size=5 maxlength=4><button onclick=jn()>입장</button></div><p class=m>친구들은 같은 링크를 열어 코드를 입력하세요. 최대 5인.</p>`;return}
+ if(!S)return;
+ if(S.ph=='lobby'){h.push(`<div class=c>방 코드 <b>${code}</b><br>${Object.values(P).map(x=>esc(x.n)).join(', ')} (${Object.keys(P).length}/5)<br>${S.host==me?'<button onclick=start()>게임 시작</button>':'<span class=m>방장이 시작하길 기다리는 중…</span>'}</div>`)}
+ else if(!p){h.push('<div class=c>이미 시작된 방이에요.</div>')}
+ else{
+  h.push(`<div class=c><b>${S.day}일차</b> · 라운드 ${S.r-(S.r0||0)+1} · 폭주 ${S.lv}단계 (다음 단계까지 ${Math.max(0,NW(S.lv)-S.wk)}작업) · 엔케팔린 <b>${S.en}/${S.q}</b> <br>부서: ${(S.dl||[]).map((l,i)=>l?`${DN[i]} ${l}단계(사무직 ${S.cl[i]})`:'').filter(Boolean).join(' · ')}</div>`);
+  h.push('<div class=c>'+Object.keys(S.ps).map(u=>{const q=S.ps[u];return `${u==me?'<b>':''}${esc(q.n)}${u==me?'</b>':''}${q.bd?'💇':''}${q.bp?'💉':''}${q.fy>0?'🧚'+q.fy:''}${(q.yg||[]).some(v=>v)?'⚡+'+q.yg.reduce((a,v)=>a+v,0):''}${q.iw?'🔒기계 속':''}${q.pr>0?'🛡'+q.pr:''} ${q.al?`HP ${q.hp}/${mH(q)} SP ${q.sp}/${mS(q)}${q.st?` <span class=w>${q.st}</span>`:''}`:'<span class=w>사망</span>'} · LP ${q.lp} · ${DN[q.dp||0]}${S.ph=='work'&&A[u]&&A[u].r===S.r&&A[u].e?' ✓':''}`}).join('<br>')+'</div>');
+  h.push(`<div class=c class=m>내 스탯: ${SN.map((n,i)=>`${n} ${Math.floor(p.s[i])}(${GN[gr(p.s[i])-1]})`).join(' · ')}<br><span class=m>무기 ${p.wi!=null?eN(p.wi,'w').replace(' (무기)','')+((((S.eq||[]).find(e=>e.u===me&&e.k=='w'))||{}).lv?' +'+(((S.eq||[]).find(e=>e.u===me&&e.k=='w'))||{}).lv+'강':''):'제압봉'} · 방어구 ${p.ai!=null?eN(p.ai,'a').replace(' (방어구)',''):'없음'}<br><span class=m>턴당 회복 HP·SP +${rgInfo(S,p).amt} (${DN[rgInfo(S,p).d]} ${rgInfo(S,p).dl}단계 · 사무직 생존 ${Math.round(rgInfo(S,p).sv*100)}% → 보너스 +${Math.round(rgInfo(S,p).b*100)}%)</span><br><span class=m>직원 등급 ${GI[eg(p)-1]} · 절제 보너스 +${Math.floor(p.s[2]/5)}% · 직원 등급 이상 환상체에서 성장 효율↑</span><br><span class=m>오늘 적립 성장(정산 때 정수만 반영, 소수점은 소멸): ${SN.map((n,i)=>`${n}+${((p.g||[])[i]||0).toFixed(1)}`).join(' ')}</span></div>`);
+  if(S.ph=='work'){if(S.host==me)h.push('<div class=c><span class=m>[테스트] 방장 전용 일차 건너뛰기</span> <button onclick=sk(1)>+1일</button><button onclick=sk(5)>+5일</button><button onclick=sk(20)>+20일</button><button onclick=to()>시련 즉시 발동</button></div>');h.push(CTL());for(let dp=0;dp<10;dp++)if(S.dl[dp])h.push(DET(dp,p));h.push(CODEX());h.push([].map((a,i)=>{const d=AB[a.id],sel=0;
+   return `<div class=c><b>${d.n}</b> <span class=m>${d.g} · ${DT[d.d]} · 최대 ${d.m}회 시도 · PE박스 ${S.eb[a.id]||0}</span>${a.c!=null?` · 카운터 ${a.c}/${d.c}`:' · 카운터 없음'}${a.t!=null?` <span class=w>⚠ 폭주 ${a.t}턴 남음</span>`:''}<br>${W.map((n,w)=>`<button class="${sel&&sel[0]==i&&sel[1]==w?'on':''}" ${!p.al||p.st?'disabled':''} onclick="act({r:${S.r},w:[${i},${w}]})">${n}</button>`).join('')}</div>`}).join(''))}
+  else if(S.ph=='fight'){h.unshift(FIGHT(p))}
+  else if(S.ph=='vote'){h.push(`<div class=c><b>${S.vt.kind=='end'?'할당량 달성! 어떻게 할까요?':S.vt.kind=='dept'?'올릴 부서 선택':'새 환상체 선택 · '+DN[S.nd]}</b><br>${S.vt.ch.map((c,i)=>`<button class="${A[me]&&A[me].vk===S.vk&&A[me].c==i?'on':''}" onclick="act({vk:${S.vk},c:${i}})">${c.t||('<b>'+esc(ucnt(S,c.id)>=utot(c.id)?AB[c.id].n:AB[c.id].code)+'</b> '+esc(AB[c.id].desc))}</button>`).join('')}<br><span class=m>전원 투표 시 결정 (동률은 무작위)</span></div>`)}
+  else if(S.ph=='shop'){h.push(CODEX());h.push(EGO(p));h.push(`<div class=c><b>정산</b> · 보유 롭포인트 <b>${p.lp}</b><br>${SN.map((n,i)=>{const g=gr(p.s[i]);return g<5?`<button onclick="act({b:${i},n:Date.now()})">${n} ${GN[g-1]}→${GN[g]} (${cost(i,g)}LP)</button>`:''}).join('')}${!p.al?'<button onclick="act({b:4,n:Date.now()})">재고용 (1LP, 스탯 초기화)</button>':''}<br>배치: ${(S.dl||[]).map((l,d)=>l?`<button class="${(A[me]&&A[me].pl!=null?A[me].pl:p.dp||0)===d?'on':''}" onclick="act({pl:${d}})">${DN[d]}</button>`:'').join('')}<br><button class="${A[me]&&A[me].rd===S.day&&(A[me].rv||0)===(S.rv||0)?'on':''}" onclick="act({rd:${S.day},rv:${S.rv||0}})">준비 완료</button></div>`)}
+  else h.push(`<div class=c><b>${S.ph=='win'?'50일 생존! 🎉':S.dtm?'💀 만지지마… 게임 오버':'전원 사망… 게임 오버'}</b>${S.ph=='over'&&S.sv&&S.sv.m?`<br>${S.host==me?`<button onclick="xc({t:'rs'})">${S.dtm?'⏪ 그날 아침으로 돌아가기 ('+lbl(S.sv.d)+')':'🧠 기억저장소로 돌아가기 ('+lbl(S.sv.m)+')'}</button>`:`<span class=m>방장이 ${S.dtm?'그날 아침':'기억저장소'}으로 돌아가길 기다리는 중…</span>`}`:''}<br><button onclick=leave()>처음 화면으로</button>${S.dtm?`<div class=c style="cursor:pointer" onclick="dtm()"><b>${AB[DTM].n}</b> <span class=m>${AB[DTM].code}</span></div>`:''}</div>`);
+  if(S.ph!='over'&&S.ph!='win')h.push(SVP());
+  h.push(`<div class="c m">${(S.log||[]).map(esc).join('<br>')}<br>※ v0.2: 첫 환상체 외에는 임시 데이터 (시련·에고·도감·부서 확장은 다음 버전)</div>`)}
+ $('#app').innerHTML=BK?BKH():RQ()+h.join('')+BAR()}
+(function(){
+const cfg=window.FBCFG;
+if(!cfg||!cfg.apiKey||String(cfg.apiKey).indexOf('여기')>=0){$('#app').textContent='Firebase 설정(FBCFG)이 비어 있어요. index.html 맨 위의 설정을 채워주세요.';return}
+try{firebase.initializeApp(cfg)}catch(e){$('#app').textContent='Firebase 초기화 실패: '+e.message;return}
+const fs=firebase.firestore();
+const enc=o=>({j:JSON.stringify(o)}),dec=x=>x&&x.j?JSON.parse(x.j):undefined;
+const snapOf=s=>({exists:s.exists,id:s.id,data:()=>s.exists?dec(s.data()):undefined});
+const wrapDoc=r=>({id:r.id,get:async()=>snapOf(await r.get()),set:o=>r.set(enc(o)),onSnapshot:(f,e)=>r.onSnapshot(s=>f(snapOf(s)),e),collection:p=>wrapCol(r.collection(p))});
+const wrapCol=c=>{const mk=q=>({docs:q.docs.map(d=>({id:d.id,data:()=>dec(d.data())}))});return{doc:id=>wrapDoc(c.doc(id)),get:async()=>mk(await c.get()),onSnapshot:(f,e)=>c.onSnapshot(q=>f(mk(q)),e)}};
+db={doc:p=>wrapDoc(fs.doc(p)),collection:p=>wrapCol(fs.collection(p))};
+let u=null;try{u=localStorage.getItem('lcUid')}catch(e){}
+if(!u){u='u'+Math.random().toString(36).slice(2,10)+Date.now().toString(36);try{localStorage.setItem('lcUid',u)}catch(e){}}
+me=u;render();
+})();
+</script></body></html>
