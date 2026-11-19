@@ -1244,10 +1244,10 @@ async function join(){await db.doc(`g/${code}/p/${me}`).set({n:nm});try{localSto
  const g=++gen;db.doc('g/'+code).onSnapshot(s=>{if(g!==gen)return;S=s.data();tick();render()});
  db.collection(`g/${code}/p`).onSnapshot(s=>{if(g!==gen)return;P={};s.docs.forEach(d=>P[d.id]=d.data());render()});
  db.collection(`g/${code}/a`).onSnapshot(s=>{if(g!==gen)return;A={};s.docs.forEach(d=>A[d.id]=d.data());tick();render()});
- let pi=3000;const pl=async()=>{if(g!==gen)return;if(document.hidden||!S||S.host==me){setTimeout(pl,pi);return}
+ let pi=3000;const pl=async()=>{if(g!==gen)return;if(document.hidden||!S||(S.host==me&&S.ph!='lobby')){setTimeout(pl,pi);return}
   try{const[sg,sp,sa]=await Promise.all([db.doc('g/'+code).get(),db.collection(`g/${code}/p`).get(),db.collection(`g/${code}/a`).get()]);if(g!==gen)return;let ch=0;const d=sg.exists?sg.data():null;if(d&&JSON.stringify(d)!==JSON.stringify(S)){S=d;ch=1}const np={};sp.docs.forEach(x=>np[x.id]=x.data());if(JSON.stringify(np)!==JSON.stringify(P)){P=np;ch=1}const na={};sa.docs.forEach(x=>na[x.id]=x.data());if(JSON.stringify(na)!==JSON.stringify(A)){A=na;ch=1}if(ch)render()}catch(e){pi=Math.min(20000,pi*2)}
-  setTimeout(pl,pi)};}
-function start(){const ps={};Object.keys(P).forEach(u=>ps[u]={n:P[u].n,s:[10,10,10,10],hp:50,sp:50,al:1,lp:0,tr:R(3),ln:0,st:null});
+  setTimeout(pl,S&&S.ph=='lobby'?Math.min(pi,1500):pi)};}
+async function start(){try{const sp=await db.collection(`g/${code}/p`).get();const np={};sp.docs.forEach(x=>np[x.id]=x.data());if(Object.keys(np).length)P=np}catch(e){}const ps={};Object.keys(P).forEach(u=>ps[u]={n:P[u].n,s:[10,10,10,10],hp:50,sp:50,al:1,lp:0,tr:R(3),ln:0,st:null});
  const T={host:me,day:1,ps,eb:{},vk:0,log:['게임 시작!'],dl:[1,0,0,0,0,0,0,0,0,0],ab:[{id:0,c:null,t:null}]};init(T);T.sv.m=snap(T);db.doc('g/'+code).set(T)}
 const cy=(s,seed=7)=>{let h1=0xdeadbeef^seed,h2=0x41c6ce57^seed;for(let i=0,ch;i<s.length;i++){ch=s.charCodeAt(i);h1=Math.imul(h1^ch,2654435761);h2=Math.imul(h2^ch,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return(4294967296*(2097151&h2)+(h1>>>0)).toString(36)},DEVH='1jrzvv1b3zm',
 devOn=()=>{try{return localStorage.getItem('dv')===DEVH}catch(e){return 0}},
